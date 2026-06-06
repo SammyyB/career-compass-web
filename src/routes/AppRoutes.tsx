@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { HashRouter, Routes, Route } from "react-router-dom";
 
 import LandingPage from "../pages/auth/LandingPage";
 import Login from "../pages/auth/Login";
@@ -23,7 +23,7 @@ import ProtectedRoute from "./ProtectedRoute";
 
 export default function AppRoutes() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
@@ -137,9 +137,7 @@ export default function AppRoutes() {
             </ProtectedRoute>
           }
         />
-
-        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
