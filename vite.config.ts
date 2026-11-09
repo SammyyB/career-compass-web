@@ -4,5 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: "/career-compass-web/",
+  base: process.env.VERCEL
+    ? "/"
+    : "/career-compass-web/",
 });
