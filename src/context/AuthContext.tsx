@@ -46,11 +46,21 @@ type AuthContextType = {
   signIn: (email: string, password: string) => Promise<Profile>;
   signUpStudent: (data: PasswordRegistration) => Promise<boolean>;
   beginStudentRegistration: (data: StudentRegistration) => Promise<boolean>;
+  resendSignupConfirmation: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
+  requestEmailChange: (email: string) => Promise<void>;
   updatePassword: (password: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
 };
+
+type AuthEmailOtpType =
+  | "signup"
+  | "invite"
+  | "magiclink"
+  | "recovery"
+  | "email_change"
+  | "email";
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -72,8 +82,12 @@ export function getPasswordRuleMessage() {
   return "Password must be at least 8 characters and include one uppercase letter, one number, and one special character.";
 }
 
-function getRedirectUrl(flow: "signup" | "reset") {
-  return `${window.location.origin}${import.meta.env.BASE_URL}#/update-password?flow=${flow}`;
+function getRedirectUrl(flow: "signup" | "reset" | "email_change") {
+  // Do not put a HashRouter route here. Supabase places recovery tokens in the
+  // URL hash, and two hash fragments prevent Supabase from restoring the session.
+  const redirectUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
+  redirectUrl.searchParams.set("auth_flow", flow);
+  return redirectUrl.toString();
 }
 
 function metadataFromDetails(details: StudentProfileDetails) {
@@ -113,9 +127,91 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let mounted = true;
+    let handledAuthFlow = false;
+
+    const routeToPasswordForm = (hasSession: boolean) => {
+      if (!hasSession || handledAuthFlow) return;
+
+      const authFlow = new URLSearchParams(window.location.search).get(
+        "auth_flow"
+      );
+
+      if (
+        authFlow !== "signup" &&
+        authFlow !== "reset" &&
+        authFlow !== "email_change"
+      ) return;
+
+      handledAuthFlow = true;
+      const appBase = new URL(import.meta.env.BASE_URL, window.location.origin);
+      window.history.replaceState(null, "", appBase.toString());
+      window.location.hash = authFlow === "email_change"
+        ? "/profile?email=confirmed"
+        : `/update-password?flow=${authFlow}`;
+    };
 
     const initialize = async () => {
-      const { data, error } = await supabase.auth.getSession();
+      const queryParams = new URLSearchParams(window.location.search);
+      const callbackTokenHash = queryParams.get("token_hash");
+      const callbackOtpType = queryParams.get("type");
+      const callbackParams = new URLSearchParams(
+        window.location.hash.startsWith("#")
+          ? window.location.hash.slice(1)
+          : window.location.hash
+      );
+      const callbackAccessToken = callbackParams.get("access_token");
+      const callbackRefreshToken = callbackParams.get("refresh_token");
+
+      let data: { session: Session | null };
+      let error: Error | null = null;
+
+      // Custom Supabase email templates can return a token hash to the app.
+      // Verify it here so recovery does not depend on a browser preserving the
+      // access-token fragment from Supabase's hosted confirmation URL.
+      const validOtpTypes: AuthEmailOtpType[] = [
+        "signup",
+        "invite",
+        "magiclink",
+        "recovery",
+        "email_change",
+        "email",
+      ];
+      if (
+        callbackTokenHash &&
+        callbackOtpType &&
+        validOtpTypes.includes(callbackOtpType as AuthEmailOtpType)
+      ) {
+        const verified = await supabase.auth.verifyOtp({
+          token_hash: callbackTokenHash,
+          type: callbackOtpType as AuthEmailOtpType,
+        });
+        data = verified.data;
+        error = verified.error;
+      } else {
+        const current = await supabase.auth.getSession();
+        data = current.data;
+        error = current.error;
+      }
+
+      // Restore the implicit-flow session from Supabase's confirmation URL
+      // before replacing its hash with a HashRouter route.
+      if (
+        !data.session &&
+        callbackAccessToken &&
+        callbackRefreshToken
+      ) {
+        const restored = await supabase.auth.setSession({
+          access_token: callbackAccessToken,
+          refresh_token: callbackRefreshToken,
+        });
+
+        if (!restored.error) {
+          data = { ...data, session: restored.data.session };
+          error = null;
+        } else {
+          error = restored.error;
+        }
+      }
 
       if (!mounted) return;
       if (error) console.error(error.message);
@@ -123,6 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session);
       if (data.session?.user) await loadProfile(data.session.user.id);
       setLoading(false);
+      routeToPasswordForm(Boolean(data.session));
     };
 
     void initialize();
@@ -132,6 +229,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = supabase.auth.onAuthStateChange(
       (_event: unknown, nextSession: Session | null) => {
       setSession(nextSession);
+
+      // Supabase may restore the confirmation session after getSession() has
+      // returned. Handle the auth event too so signup/reset links still reach
+      // the password form instead of leaving the user at the landing page.
+      routeToPasswordForm(Boolean(nextSession));
 
       if (nextSession?.user) {
         void loadProfile(nextSession.user.id);
@@ -219,6 +321,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const resendSignupConfirmation = async (email: string) => {
+    requireSupabaseConfiguration();
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      throw new Error("Enter a valid email address.");
+    }
+
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: normalizedEmail,
+      options: { emailRedirectTo: getRedirectUrl("signup") },
+    });
+
+    if (error) throw new Error(error.message);
+  };
+
   const signOut = async () => {
     if (supabaseConfigured) await supabase.auth.signOut();
     setSession(null);
@@ -236,8 +355,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw new Error(error.message);
   };
 
+  const requestEmailChange = async (email: string) => {
+    requireSupabaseConfiguration();
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      throw new Error("Enter a valid email address.");
+    }
+
+    const { error } = await supabase.auth.updateUser(
+      { email: normalizedEmail },
+      { emailRedirectTo: getRedirectUrl("email_change") }
+    );
+
+    if (error) throw new Error(error.message);
+  };
+
   const updatePassword = async (password: string) => {
     requireSupabaseConfiguration();
+
+    if (!session) {
+      throw new Error(
+        "This secure link is no longer active. Request a new password link and open it in this browser."
+      );
+    }
 
     if (!isStrongPassword(password)) {
       throw new Error(getPasswordRuleMessage());
@@ -262,8 +403,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn,
       signUpStudent,
       beginStudentRegistration,
+      resendSignupConfirmation,
       signOut,
       requestPasswordReset,
+      requestEmailChange,
       updatePassword,
       refreshProfile,
     }),
