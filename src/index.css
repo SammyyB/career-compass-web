@@ -1,8 +1,49 @@
 @import "tailwindcss";
 
 @layer base {
+  html,
+  body,
+  #root {
+    min-width: 320px;
+    width: 100%;
+    min-height: 100%;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+
   :focus-visible {
     outline: 3px solid #55b497;
     outline-offset: 2px;
+  }
+}
+
+@media (max-width: 640px) {
+  main > section.rounded-3xl:first-child {
+    padding: 1.25rem;
+  }
+
+  main h1.text-4xl {
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+    overflow-wrap: anywhere;
+  }
+
+  main h2.text-4xl {
+    font-size: 1.75rem;
+    line-height: 2.1rem;
+    overflow-wrap: anywhere;
+  }
+
+  main > section,
+  main > div {
+    min-width: 0;
+  }
+
+  main input,
+  main select,
+  main textarea {
+    max-width: 100%;
   }
 }

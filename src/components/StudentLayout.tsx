@@ -280,22 +280,22 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
 
       <aside
         id="student-navigation"
-        className={`fixed left-0 top-0 z-50 min-h-screen w-[min(300px,calc(100vw-1rem))] max-w-full overflow-x-hidden border-r border-teal-100 bg-gradient-to-b from-[#dff6f2] to-[#eefaf8] px-4 py-8 sm:px-5 transition-transform duration-200 ${sidebarClassName}`}
+        className={`fixed left-0 top-0 z-50 min-h-screen w-[300px] border-r border-teal-100 bg-gradient-to-b from-[#dff6f2] to-[#eefaf8] px-5 py-8 transition-transform duration-200 ${sidebarClassName}`}
       >
-        <div className="mb-10 flex min-w-0 items-center justify-between gap-2">
+        <div className="mb-10 flex items-center justify-between gap-4">
           <NavLink
             to="/dashboard"
             onClick={() => setMobileMenuOpen(false)}
-            className="flex min-w-0 items-center gap-2"
+            className="flex items-center gap-4"
           >
             <img
               src={logo}
               alt="Career Compass Logo"
-              className="h-12 w-12 shrink-0 object-contain"
+              className="h-16 w-16 shrink-0 object-contain"
             />
 
             <div className="leading-tight">
-              <h1 className="whitespace-nowrap text-xl font-extrabold text-[#16806d]">
+              <h1 className="whitespace-nowrap text-2xl font-extrabold text-[#16806d]">
                 Career Compass
               </h1>
               <p className="mt-1 text-sm text-slate-500">Navigate your future</p>
@@ -305,7 +305,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
           <button
             type="button"
             onClick={() => setMobileMenuOpen(false)}
-            className="shrink-0 rounded-lg p-1 text-slate-500 lg:hidden"
+            className="text-slate-500 lg:hidden"
             aria-label="Close sidebar"
           >
             <X size={22} />

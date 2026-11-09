@@ -102,17 +102,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 1024) {
-        setMenuOpen(false);
-      }
-    };
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
   const loadNotifications = async () => {
     try {
       setUpdates((await listRecentAuditLogs(8)) as AdminUpdate[]);
@@ -279,22 +268,22 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       <aside
         id="admin-navigation"
-        className={`${menuOpen ? "translate-x-0" : "-translate-x-full"} fixed left-0 top-0 z-50 min-h-screen w-[min(300px,calc(100vw-1rem))] max-w-full overflow-x-hidden border-r border-teal-100 bg-gradient-to-b from-[#dff6f2] to-[#eefaf8] px-5 py-8 transition-transform lg:translate-x-0`}
+        className={`${menuOpen ? "translate-x-0" : "-translate-x-full"} fixed left-0 top-0 z-50 min-h-screen w-[300px] border-r border-teal-100 bg-gradient-to-b from-[#dff6f2] to-[#eefaf8] px-5 py-8 transition-transform lg:translate-x-0`}
         aria-label="Administrator navigation"
       >
-        <div className="relative mb-10 min-w-0 pr-8">
+        <div className="mb-10 flex items-center justify-between">
           <NavLink
             to="/admin"
             onClick={() => setMenuOpen(false)}
-            className={`flex min-w-0 items-center gap-2 ${focusClass}`}
+            className={`flex items-center gap-4 ${focusClass}`}
           >
             <img
               src={logo}
               alt="Career Compass Logo"
-              className="h-12 w-12 shrink-0 object-contain"
+              className="h-16 w-16 shrink-0 object-contain"
             />
-            <div className="min-w-0 leading-tight">
-              <h1 className="whitespace-nowrap text-xl font-extrabold text-[#16806d]">
+            <div className="leading-tight">
+              <h1 className="whitespace-nowrap text-2xl font-extrabold text-[#16806d]">
                 Career Compass
               </h1>
               <p className="mt-1 text-sm text-slate-500">Admin Portal</p>
@@ -303,7 +292,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <button
             type="button"
             onClick={() => setMenuOpen(false)}
-            className={`absolute right-0 top-1 text-slate-600 lg:hidden ${focusClass}`}
+            className={`text-slate-600 lg:hidden ${focusClass}`}
             aria-label="Close menu"
           >
             <X size={22} />
