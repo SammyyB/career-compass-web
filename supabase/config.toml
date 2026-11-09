@@ -1,0 +1,4 @@
+project_id = "esqorodtidmajbcgqllp"
+
+[functions.career-ai]
+verify_jwt = false

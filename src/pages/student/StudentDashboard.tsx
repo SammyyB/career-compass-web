@@ -1,308 +1,264 @@
-import StudentLayout from "../../components/StudentLayout";
+import { useEffect, useMemo, useState } from "react";
 import {
-  TrendingUp,
-  Target,
   BookOpen,
   Briefcase,
-  Code,
-  Database,
-  Cloud,
-  Star,
   CheckCircle2,
+  GraduationCap,
+  Target,
+  TrendingUp,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-const stats = [
-  {
-    title: "Overall Match Score",
-    value: "82%",
-    note: "12% this week",
-    icon: TrendingUp,
-    color: "text-[#16806d]",
-    bg: "bg-[#d9f3ee]",
-  },
-  {
-    title: "Skills Assessed",
-    value: "24",
-    note: "of 36",
-    icon: Target,
-    color: "text-purple-600",
-    bg: "bg-purple-100",
-  },
-  {
-    title: "Recommended Electives",
-    value: "5",
-    note: "new suggestions",
-    icon: BookOpen,
-    color: "text-blue-600",
-    bg: "bg-blue-100",
-  },
-  {
-    title: "Career Matches",
-    value: "3",
-    note: "top matches",
-    icon: Briefcase,
-    color: "text-orange-500",
-    bg: "bg-orange-100",
-  },
-];
-
-const matches = [
-  {
-    number: "01",
-    career: "Web Developer",
-    score: "88%",
-    description: "Design, build, and maintain websites and web applications.",
-    skills: ["HTML", "CSS", "JavaScript", "+3 more"],
-    icon: Code,
-    theme: "teal",
-  },
-  {
-    number: "02",
-    career: "Data Analyst",
-    score: "79%",
-    description: "Analyze data to help organizations make informed decisions.",
-    skills: ["SQL", "Excel", "Python", "+2 more"],
-    icon: Database,
-    theme: "purple",
-  },
-  {
-    number: "03",
-    career: "Cloud Engineer",
-    score: "74%",
-    description: "Design and manage cloud infrastructure and services.",
-    skills: ["AWS", "Linux", "Docker", "+2 more"],
-    icon: Cloud,
-    theme: "orange",
-  },
-];
-
-const progress = [
-  ["Skills Assessment", "80%"],
-  ["Elective Recommendations", "65%"],
-  ["Career Exploration", "70%"],
-  ["Interview Preparation", "75%"],
-];
-
-const activities = [
-  ["Completed Skills Assessment", "2 hours ago"],
-  ["Explored Data Analyst career path", "Yesterday"],
-  ["Added Python to your skills", "2 days ago"],
-  ["Viewed Web Developer career details", "3 days ago"],
-];
+import StudentLayout from "../../components/StudentLayout";
+import { useAuth } from "../../context/AuthContext";
+import type { Career, Skill, StudentSkill } from "../../lib/types";
+import { rankCareers } from "../../services/recommendations";
+import { listCareers, listSkills, listStudentSkills } from "../../services/repository";
 
 export default function StudentDashboard() {
+  const { profile, session } = useAuth();
+  const navigate = useNavigate();
+  const [careers, setCareers] = useState<Career[]>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [studentSkills, setStudentSkills] = useState<StudentSkill[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!session?.user.id) return;
+
+    const load = async () => {
+      setLoading(true);
+
+      try {
+        const [careerData, skillData, studentSkillData] = await Promise.all([
+          listCareers(),
+          listSkills(),
+          listStudentSkills(session.user.id),
+        ]);
+
+        setCareers(careerData);
+        setSkills(skillData);
+        setStudentSkills(studentSkillData);
+      } catch (error) {
+        console.error("Unable to load student dashboard:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void load();
+  }, [session?.user.id]);
+
+  const matches = useMemo(
+    () =>
+      rankCareers(
+        careers,
+        skills,
+        studentSkills,
+        profile?.academic_year,
+        profile?.career_target
+      ),
+    [careers, profile?.academic_year, profile?.career_target, skills, studentSkills]
+  );
+
+  const displayName = profile?.first_name || "Student";
+  const profileFields = [
+    profile?.first_name,
+    profile?.last_name,
+    profile?.student_id,
+    profile?.academic_year,
+    profile?.program,
+    profile?.career_target,
+  ];
+  const profileCompletion = Math.round(
+    (profileFields.filter(Boolean).length / profileFields.length) * 100
+  );
+
+  const cards = [
+    {
+      title: "Career Profiles",
+      value: careers.length,
+      Icon: Briefcase,
+      note: "Available paths",
+    },
+    {
+      title: "Skills Available",
+      value: skills.length,
+      Icon: Target,
+      note: "Tracked by the system",
+    },
+    {
+      title: "Your Interests",
+      value: profile?.interests.length ?? 0,
+      Icon: BookOpen,
+      note: "Selected interests",
+    },
+    {
+      title: "Career Matches",
+      value: matches.length,
+      Icon: GraduationCap,
+      note: "Calculated from thresholds",
+    },
+  ];
+
+  const primary = matches[0];
+
   return (
     <StudentLayout>
-      <section className="bg-gradient-to-r from-[#e1f8f4] to-[#f0fbf9] rounded-3xl p-9 mb-8 shadow-sm border border-teal-100 relative overflow-hidden">
-        <div>
-          <h1 className="text-4xl font-extrabold text-slate-900">
-            Welcome back, Student
-          </h1>
+      <section className="relative mb-8 overflow-hidden rounded-3xl border border-teal-100 bg-gradient-to-r from-[#e1f8f4] to-[#f0fbf9] p-9 shadow-sm">
+        <p className="text-sm font-bold uppercase tracking-wide text-teal-700">
+          Student Dashboard
+        </p>
+        <h1 className="mt-2 text-4xl font-extrabold">Welcome back, {displayName}</h1>
+        <p className="mt-3 max-w-2xl text-lg text-slate-600">
+          Track your skill progress and discover the career paths that best fit
+          your saved scores and academic year.
+        </p>
+        <TrendingUp className="absolute bottom-0 right-10 opacity-10" size={150} />
+      </section>
 
-          <p className="text-slate-600 text-lg mt-3">
-            Track your progress and discover the best career paths for you.
+      <section className="mb-10 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+        {cards.map(({ title, value, Icon, note }) => (
+          <div
+            key={title}
+            className="flex items-center gap-5 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm"
+          >
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#d9f3ee] text-[#16806d]">
+              <Icon size={30} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-600">{title}</p>
+              <h2 className="text-4xl font-extrabold text-slate-900">{value}</h2>
+              <span className="text-sm text-slate-500">{note}</span>
+            </div>
+          </div>
+        ))}
+      </section>
+
+      <section className="mb-5 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-extrabold">Career Match Overview</h2>
+          <p className="text-slate-500">
+            Primary and secondary paths are calculated from your saved skill scores.
           </p>
         </div>
-
-        <div className="absolute right-10 bottom-0 opacity-10">
-          <Target size={150} />
-        </div>
-      </section>
-
-      <section className="grid xl:grid-cols-4 md:grid-cols-2 gap-6 mb-10">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-
-          return (
-            <div
-              key={stat.title}
-              className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-5"
-            >
-              <div
-                className={`w-16 h-16 rounded-full ${stat.bg} ${stat.color} flex items-center justify-center`}
-              >
-                <Icon size={30} />
-              </div>
-
-              <div>
-                <p className="text-sm font-semibold text-slate-600">
-                  {stat.title}
-                </p>
-
-                <div className="flex items-end gap-2 mt-1">
-                  <h2 className="text-4xl font-extrabold text-slate-900">
-                    {stat.value}
-                  </h2>
-                  <span className="text-slate-500 mb-1">{stat.note}</span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </section>
-
-      <section className="mb-5 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-orange-100 text-orange-500 flex items-center justify-center">
-            <Star size={24} />
-          </div>
-
-          <div>
-            <h2 className="text-2xl font-extrabold">Top Career Matches</h2>
-            <p className="text-slate-500">
-              Based on your skills, interests, and goals
-            </p>
-          </div>
-        </div>
-
-        <button className="border border-teal-200 text-[#16806d] px-5 py-3 rounded-xl font-bold hover:bg-teal-50">
-          View All Matches
+        <button
+          type="button"
+          onClick={() => navigate("/career-recommendations")}
+          className="rounded-xl border border-teal-200 px-5 py-3 font-bold text-[#16806d] hover:bg-teal-50"
+        >
+          View Full Results
         </button>
       </section>
 
-      <section className="grid xl:grid-cols-3 gap-6 mb-8">
-        {matches.map((match, index) => {
-          const Icon = match.icon;
-
-          const isFirst = index === 0;
-          const isSecond = index === 1;
-
-          const accent = isFirst
-            ? "text-[#16806d] border-[#55b497]"
-            : isSecond
-            ? "text-purple-600 border-purple-300"
-            : "text-orange-500 border-orange-300";
-
-          const scoreColor = isFirst
-            ? "text-[#16806d]"
-            : isSecond
-            ? "text-purple-600"
-            : "text-orange-500";
-
-          const button = isFirst
-            ? "bg-gradient-to-r from-[#1f8f78] to-[#36a889] text-white"
-            : isSecond
-            ? "border border-purple-300 text-purple-700"
-            : "border border-orange-300 text-orange-500";
-
-          const iconBg = isFirst
-            ? "bg-[#55b497]"
-            : isSecond
-            ? "bg-purple-600"
-            : "bg-orange-500";
-
-          return (
-            <div
-              key={match.career}
-              className={`bg-white rounded-3xl p-8 shadow-sm border ${accent} hover:shadow-lg transition`}
-            >
-              <span
-                className={`${iconBg} text-white px-3 py-1 rounded-md text-sm font-bold`}
-              >
-                {match.number}
-              </span>
-
-              <div className="flex justify-between items-center mt-8">
-                <div className="flex items-center gap-4">
-                  <div
-                    className={`${iconBg} text-white w-14 h-14 rounded-2xl flex items-center justify-center shadow`}
-                  >
-                    <Icon size={28} />
-                  </div>
-
-                  <h3 className="text-2xl font-extrabold text-slate-900">
-                    {match.career}
-                  </h3>
-                </div>
-
-                <div className="text-right">
-                  <p className={`text-4xl font-extrabold ${scoreColor}`}>
-                    {match.score}
-                  </p>
-                  <p className="text-sm text-slate-600">Match</p>
-                </div>
+      {loading ? (
+        <div className="mb-8 rounded-3xl border border-teal-100 bg-white p-8 text-slate-500 shadow-sm">
+          Loading your dashboard...
+        </div>
+      ) : !primary ? (
+        <div className="mb-8 rounded-3xl border border-teal-100 bg-white p-8 text-slate-500 shadow-sm">
+          Career recommendations will appear after an administrator adds career
+          thresholds.
+        </div>
+      ) : (
+        <section className="mb-8 grid gap-6 xl:grid-cols-3">
+          <div className="xl:col-span-2 rounded-3xl bg-gradient-to-br from-[#1f8f78] to-[#36a889] p-8 text-white shadow-lg">
+            <div className="flex items-center gap-3">
+              <AwardIcon />
+              <p className="font-bold uppercase tracking-wide">Primary career</p>
+            </div>
+            <h3 className="mt-5 text-3xl font-extrabold">{primary.career.name}</h3>
+            <p className="mt-2 text-emerald-50">{primary.career.description}</p>
+            <div className="mt-7 flex items-end justify-between gap-4">
+              <div>
+                <p className="text-sm text-emerald-50">Match score</p>
+                <p className="text-5xl font-extrabold">{primary.score}%</p>
               </div>
-
-              <p className="text-slate-600 mt-8 leading-relaxed">
-                {match.description}
-              </p>
-
-              <div className="mt-8">
-                <p className="font-bold mb-3">Top Skills</p>
-
-                <div className="flex flex-wrap gap-2">
-                  {match.skills.map((skill) => (
-                    <span
-                      key={skill}
-                      className="bg-[#f2f8f7] px-4 py-2 rounded-full text-sm font-semibold text-slate-700"
-                    >
-                      {skill}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
               <button
-                className={`w-full mt-8 py-4 rounded-xl font-bold ${button}`}
+                type="button"
+                onClick={() => navigate("/career-recommendations")}
+                className="rounded-xl bg-white px-5 py-3 font-bold text-[#16806d]"
               >
-                View Career Details
+                Explore path
               </button>
             </div>
-          );
-        })}
-      </section>
-
-      <section className="grid xl:grid-cols-2 gap-6">
-        <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
-          <h2 className="text-xl font-extrabold mb-6">Your Progress</h2>
-
-          <div className="flex items-center gap-10">
-            <div className="w-32 h-32 rounded-full border-[14px] border-[#55b497] flex items-center justify-center">
-              <div className="text-center">
-                <p className="text-3xl font-extrabold">72%</p>
-                <p className="text-xs text-slate-500">Overall</p>
-              </div>
+            <div className="mt-6 h-4 rounded-full bg-white/25">
+              <div
+                className="h-4 rounded-full bg-white"
+                style={{ width: `${primary.score}%` }}
+              />
             </div>
+          </div>
 
-            <div className="flex-1 space-y-5">
-              {progress.map(([label, value]) => (
-                <div key={label}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span>{label}</span>
-                    <span>{value}</span>
+          <div className="rounded-3xl border border-teal-100 bg-white p-8 shadow-sm">
+            <div className="mb-5 flex items-center gap-3">
+              <TrendingUp className="text-[#16806d]" />
+              <h2 className="text-xl font-extrabold">Secondary paths</h2>
+            </div>
+            <div className="space-y-5">
+              {matches.slice(1, 4).map((match) => (
+                <div key={match.career.id}>
+                  <div className="flex justify-between gap-3 text-sm font-bold">
+                    <span>{match.career.name}</span>
+                    <span className="text-[#16806d]">{match.score}%</span>
                   </div>
-
-                  <div className="h-3 bg-[#e8f3f1] rounded-full">
+                  <div className="mt-2 h-3 rounded-full bg-slate-100">
                     <div
-                      className="h-3 bg-[#55b497] rounded-full"
-                      style={{ width: value }}
-                    ></div>
+                      className="h-3 rounded-full bg-[#55b497]"
+                      style={{ width: `${match.score}%` }}
+                    />
                   </div>
                 </div>
               ))}
             </div>
           </div>
+        </section>
+      )}
+
+      <section className="grid gap-6 xl:grid-cols-2">
+        <div className="rounded-3xl border border-slate-100 bg-white p-8 shadow-sm">
+          <h2 className="mb-6 text-xl font-extrabold">Profile Completion</h2>
+          <div className="h-4 rounded-full bg-[#e8f3f1]">
+            <div
+              className="h-4 rounded-full bg-[#55b497] transition-all"
+              style={{ width: `${profileCompletion}%` }}
+            />
+          </div>
+          <p className="mt-3 text-sm text-slate-500">
+            {profileCompletion}% complete. Add your academic details, interests,
+            and career target to improve your recommendations.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate("/profile")}
+            className="mt-5 rounded-xl bg-[#eaf8f5] px-5 py-3 font-bold text-[#16806d]"
+          >
+            Update Profile
+          </button>
         </div>
 
-        <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
-          <h2 className="text-xl font-extrabold mb-6">Recent Activity</h2>
-
-          <div className="space-y-5">
-            {activities.map(([activity, time]) => (
-              <div key={activity} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="w-8 h-8 bg-[#55b497] text-white rounded-full flex items-center justify-center">
-                    <CheckCircle2 size={18} />
-                  </span>
-                  <p>{activity}</p>
-                </div>
-
-                <p className="text-sm text-slate-400">{time}</p>
-              </div>
-            ))}
+        <div className="rounded-3xl border border-slate-100 bg-white p-8 shadow-sm">
+          <h2 className="mb-6 text-xl font-extrabold">Next Steps</h2>
+          <div className="space-y-4">
+            <p className="flex gap-3">
+              <CheckCircle2 className="shrink-0 text-[#16806d]" size={20} />
+              Set your current skill scores in Skill Gap Analysis.
+            </p>
+            <p className="flex gap-3">
+              <CheckCircle2 className="shrink-0 text-[#16806d]" size={20} />
+              Review the primary career graph and secondary paths.
+            </p>
+            <p className="flex gap-3">
+              <CheckCircle2 className="shrink-0 text-[#16806d]" size={20} />
+              Explore electives that can close your largest gaps.
+            </p>
           </div>
         </div>
       </section>
     </StudentLayout>
   );
+}
+
+function AwardIcon() {
+  return <Target size={28} />;
 }

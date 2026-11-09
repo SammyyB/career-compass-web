@@ -1,331 +1,414 @@
-import { useState } from "react";
-import AdminLayout from "../../components/AdminLayout";
-import { Layers, Plus, Pencil, Save, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Layers, Pencil, Plus, Save, X } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 
-type Specialization = {
-  id: number;
-  name: string;
-  career: string;
-  skills: string;
-  electives: string;
-};
+import AdminLayout from "../../components/AdminLayout";
+import InlineNotice from "../../components/InlineNotice";
+import SearchableMultiSelect from "../../components/SearchableMultiSelect";
+import TablePagination from "../../components/TablePagination";
+import { useAuth } from "../../context/AuthContext";
+import type { Career, Elective, Skill, Specialization } from "../../lib/types";
+import {
+  listCareers,
+  listElectives,
+  listSkills,
+  listSpecializations,
+  saveSpecialization,
+} from "../../services/repository";
+
+const pageSize = 8;
+const focusClass =
+  "focus:outline-none focus:ring-2 focus:ring-[#55b497] focus:ring-offset-1";
 
 export default function Specializations() {
-  const [selectedCareer, setSelectedCareer] = useState("Web Developer");
-
-  const [specializations, setSpecializations] = useState<Specialization[]>([
-    {
-      id: 1,
-      name: "Frontend Developer",
-      career: "Web Developer",
-      skills: "HTML/CSS, JavaScript, UI/UX Principles",
-      electives: "Advanced Web Systems, UI/UX Design Basics",
-    },
-    {
-      id: 2,
-      name: "Backend Developer",
-      career: "Web Developer",
-      skills: "Node.js, REST API, Database Management",
-      electives: "RESTful API Development, Database Systems",
-    },
-    {
-      id: 3,
-      name: "Full Stack Developer",
-      career: "Web Developer",
-      skills: "Frontend, Backend, Database, Deployment",
-      electives: "Advanced Web Systems, DevOps Fundamentals",
-    },
-  ]);
-
-  const visibleSpecializations = specializations.filter(
-    (item) => item.career === selectedCareer
-  );
-
-  const [selectedSpecializationId, setSelectedSpecializationId] = useState(1);
+  const { profile } = useAuth();
+  const [searchParams] = useSearchParams();
+  const [careers, setCareers] = useState<Career[]>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [electives, setElectives] = useState<Elective[]>([]);
+  const [items, setItems] = useState<Specialization[]>([]);
+  const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-
-  const selectedSpecialization =
-    specializations.find((item) => item.id === selectedSpecializationId) ||
-    visibleSpecializations[0];
-
-  const [formData, setFormData] = useState({
+  const [form, setForm] = useState({
     name: "",
-    career: selectedCareer,
-    skills: "",
-    electives: "",
+    careerId: "",
+    requiredSkills: [] as string[],
+    recommendedElectives: [] as string[],
   });
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
-  const openAddForm = () => {
-    setShowForm(true);
-    setEditingId(null);
-    setFormData({
-      name: "",
-      career: selectedCareer,
-      skills: "",
-      electives: "",
-    });
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [careerData, skillData, electiveData, specializationData] =
+        await Promise.all([
+          listCareers(),
+          listSkills(),
+          listElectives(),
+          listSpecializations(),
+        ]);
+      setCareers(careerData);
+      setSkills(skillData);
+      setElectives(electiveData);
+      setItems(specializationData);
+      const target = searchParams.get("id")
+        ? specializationData.find((item) => item.id === searchParams.get("id"))
+        : undefined;
+      if (target) openEditForm(target);
+      setForm((current) => ({
+        ...current,
+        careerId: current.careerId || careerData[0]?.id || "",
+      }));
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Unable to load specializations.",
+      );
+    } finally {
+      setLoading(false);
+    }
   };
+  useEffect(() => {
+    void load();
+  }, []);
 
-  const openEditForm = (item: Specialization) => {
-    setShowForm(true);
-    setEditingId(item.id);
-    setFormData({
-      name: item.name,
-      career: item.career,
-      skills: item.skills,
-      electives: item.electives,
-    });
-  };
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return items.filter((item) =>
+      `${item.name} ${item.career?.name ?? ""} ${item.required_skills.join(" ")} ${item.recommended_electives.join(" ")}`
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [items, search]);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const visible = filtered.slice((page - 1) * pageSize, page * pageSize);
+  useEffect(() => {
+    setPage((current) => Math.min(current, pageCount));
+  }, [pageCount]);
 
-  const closeForm = () => {
+  function resetForm() {
+    setEditing(null);
     setShowForm(false);
-    setEditingId(null);
-  };
+    setForm({
+      name: "",
+      careerId: careers[0]?.id ?? "",
+      requiredSkills: [],
+      recommendedElectives: [],
+    });
+  }
+  function openAddForm() {
+    setError("");
+    setEditing(null);
+    setShowForm(true);
+    setForm({
+      name: "",
+      careerId: careers[0]?.id ?? "",
+      requiredSkills: [],
+      recommendedElectives: [],
+    });
+  }
+  function openEditForm(item: Specialization) {
+    setEditing(item.id);
+    setShowForm(true);
+    setForm({
+      name: item.name,
+      careerId: item.career_id,
+      requiredSkills: item.required_skills,
+      recommendedElectives: item.recommended_electives,
+    });
+  }
 
-  const saveSpecialization = () => {
-    if (
-      !formData.name.trim() ||
-      !formData.career.trim() ||
-      !formData.skills.trim() ||
-      !formData.electives.trim()
-    ) {
-      alert("Please complete all fields.");
+  const save = async () => {
+    if (!profile) return;
+    if (!form.name.trim() || !form.careerId) {
+      setError("Specialization name and career are required.");
       return;
     }
-
-    if (editingId) {
-      setSpecializations((prev) =>
-        prev.map((item) =>
-          item.id === editingId
-            ? {
-                ...item,
-                ...formData,
-              }
-            : item
-        )
-      );
-
-      setSelectedSpecializationId(editingId);
-      setSelectedCareer(formData.career);
-    } else {
-      const newSpecialization = {
-        id: Date.now(),
-        ...formData,
-      };
-
-      setSpecializations((prev) => [...prev, newSpecialization]);
-      setSelectedSpecializationId(newSpecialization.id);
-      setSelectedCareer(formData.career);
+    if (form.requiredSkills.length === 0) {
+      setError("Select at least one required skill.");
+      return;
     }
-
-    closeForm();
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      await saveSpecialization(profile.id, editing, {
+        name: form.name.trim(),
+        career_id: form.careerId,
+        required_skills: form.requiredSkills,
+        recommended_electives: form.recommendedElectives,
+      });
+      resetForm();
+      setNotice(
+        editing ? "Specialization updated." : "Specialization created.",
+      );
+      await load();
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Unable to save specialization.",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <AdminLayout>
-      <section className="bg-gradient-to-r from-[#e1f8f4] to-[#f0fbf9] rounded-3xl p-9 mb-8 border border-teal-100 shadow-sm">
-        <p className="text-sm font-bold text-teal-700 uppercase tracking-wide">
+      <section className="mb-8 rounded-3xl border border-teal-100 bg-gradient-to-r from-[#e1f8f4] to-[#f0fbf9] p-9 shadow-sm">
+        <p className="text-sm font-bold uppercase tracking-wide text-teal-700">
           Specializations
         </p>
-        <h1 className="text-4xl font-extrabold mt-2">
+        <h1 className="mt-2 text-4xl font-extrabold">
           Manage Career Specializations
         </h1>
-        <p className="text-slate-600 mt-3">
-          Add and edit specializations under each career path.
+        <p className="mt-3 text-slate-600">
+          Connect specializations to careers using searchable skill and elective
+          selections.
         </p>
       </section>
-
-      <div className="bg-white rounded-3xl p-7 border border-teal-100 shadow-sm mb-6">
-        <label className="text-sm font-bold">Select Career</label>
-        <select
-          value={selectedCareer}
-          onChange={(e) => {
-            setSelectedCareer(e.target.value);
-            const firstMatch = specializations.find(
-              (item) => item.career === e.target.value
-            );
-
-            if (firstMatch) {
-              setSelectedSpecializationId(firstMatch.id);
-            }
-          }}
-          className="w-full md:w-[350px] mt-2 p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-[#55b497]"
-        >
-          <option>Web Developer</option>
-          <option>Data Analyst</option>
-          <option>Cloud Engineer</option>
-          <option>Cybersecurity Analyst</option>
-        </select>
-      </div>
-
-      <section className="grid xl:grid-cols-3 gap-6">
-        <div className="bg-white rounded-3xl p-7 border border-teal-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-6">
+      <section className="rounded-3xl border border-teal-100 bg-white p-8 shadow-sm">
+        <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
             <Layers className="text-[#16806d]" />
-            <h2 className="text-2xl font-extrabold">Specialization List</h2>
-          </div>
-
-          <div className="space-y-3">
-            {visibleSpecializations.length > 0 ? (
-              visibleSpecializations.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setSelectedSpecializationId(item.id)}
-                  className={`w-full text-left font-bold px-5 py-4 rounded-xl transition ${
-                    selectedSpecializationId === item.id
-                      ? "bg-gradient-to-r from-[#1f8f78] to-[#36a889] text-white"
-                      : "bg-[#eaf8f5] hover:bg-[#d9f3ee]"
-                  }`}
-                >
-                  {item.name}
-                </button>
-              ))
-            ) : (
-              <p className="text-slate-500 bg-[#f8fcfb] p-5 rounded-xl">
-                No specializations yet for this career.
+            <div>
+              <h2 className="text-2xl font-extrabold">Specialization Table</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Keep career paths, required skills, and electives linked to the
+                same Supabase records.
               </p>
-            )}
-          </div>
-
-          <button
-            onClick={openAddForm}
-            className="mt-6 w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-[#1f8f78] to-[#36a889] text-white px-5 py-3 rounded-xl font-bold"
-          >
-            <Plus size={18} />
-            Add New Specialization
-          </button>
-        </div>
-
-        <div className="xl:col-span-2 bg-white rounded-3xl p-7 border border-teal-100 shadow-sm">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-extrabold">Specialization Details</h2>
-
-            {selectedSpecialization && (
-              <button
-                onClick={() => openEditForm(selectedSpecialization)}
-                className="inline-flex items-center gap-2 bg-[#eaf8f5] text-[#16806d] px-4 py-2 rounded-xl font-bold"
-              >
-                <Pencil size={16} />
-                Edit
-              </button>
-            )}
-          </div>
-
-          {!showForm ? (
-            selectedSpecialization ? (
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="bg-[#f8fcfb] p-6 rounded-2xl border border-teal-100">
-                  <p className="text-sm text-slate-500">Specialization Name</p>
-                  <h3 className="text-2xl font-extrabold text-[#16806d]">
-                    {selectedSpecialization.name}
-                  </h3>
-
-                  <p className="text-sm text-slate-500 mt-5">Career</p>
-                  <p className="font-bold">{selectedSpecialization.career}</p>
-                </div>
-
-                <div className="bg-[#f8fcfb] p-6 rounded-2xl border border-teal-100">
-                  <h3 className="font-extrabold mb-3">Required Skills</h3>
-                  <p>{selectedSpecialization.skills}</p>
-                </div>
-
-                <div className="md:col-span-2 bg-[#f8fcfb] p-6 rounded-2xl border border-teal-100">
-                  <h3 className="font-extrabold mb-3">
-                    Recommended Electives
-                  </h3>
-                  <p>{selectedSpecialization.electives}</p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-slate-500">Select or add a specialization.</p>
-            )
-          ) : (
-            <div className="bg-[#f8fcfb] border border-teal-100 rounded-2xl p-6">
-              <h3 className="text-xl font-extrabold mb-5">
-                {editingId ? "Edit Specialization" : "Add New Specialization"}
-              </h3>
-
-              <div className="grid md:grid-cols-2 gap-5">
-                <div>
-                  <label className="text-sm font-bold">
-                    Specialization Name
-                  </label>
-                  <input
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    className="w-full mt-2 p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-[#55b497]"
-                    placeholder="Example: Frontend Developer"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-bold">Career</label>
-                  <select
-                    value={formData.career}
-                    onChange={(e) =>
-                      setFormData({ ...formData, career: e.target.value })
-                    }
-                    className="w-full mt-2 p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-[#55b497]"
-                  >
-                    <option>Web Developer</option>
-                    <option>Data Analyst</option>
-                    <option>Cloud Engineer</option>
-                    <option>Cybersecurity Analyst</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-bold">Required Skills</label>
-                  <textarea
-                    rows={4}
-                    value={formData.skills}
-                    onChange={(e) =>
-                      setFormData({ ...formData, skills: e.target.value })
-                    }
-                    className="w-full mt-2 p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-[#55b497]"
-                    placeholder="HTML/CSS, JavaScript, UI/UX Principles"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-bold">
-                    Recommended Electives
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={formData.electives}
-                    onChange={(e) =>
-                      setFormData({ ...formData, electives: e.target.value })
-                    }
-                    className="w-full mt-2 p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-[#55b497]"
-                    placeholder="Advanced Web Systems, UI/UX Design Basics"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={saveSpecialization}
-                  className="inline-flex items-center gap-2 bg-[#55b497] text-white px-6 py-3 rounded-xl font-bold"
-                >
-                  <Save size={18} />
-                  Save Specialization
-                </button>
-
-                <button
-                  onClick={closeForm}
-                  className="inline-flex items-center gap-2 bg-slate-100 text-slate-700 px-6 py-3 rounded-xl font-bold"
-                >
-                  <X size={18} />
-                  Cancel
-                </button>
-              </div>
             </div>
-          )}
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <label className="sr-only" htmlFor="specialization-search">
+              Search specializations
+            </label>
+            <input
+              id="specialization-search"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+              placeholder="Search specializations..."
+              className={`rounded-xl border border-slate-200 p-3 ${focusClass}`}
+            />
+            <button
+              type="button"
+              onClick={openAddForm}
+              className={`inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#1f8f78] to-[#36a889] px-5 py-3 font-bold text-white ${focusClass}`}
+            >
+              <Plus size={18} />
+              Add Specialization
+            </button>
+          </div>
         </div>
+        {error && (
+          <div className="mb-5">
+            <InlineNotice
+              type="error"
+              message={error}
+              onDismiss={() => setError("")}
+            />
+          </div>
+        )}
+        {notice && (
+          <div className="mb-5">
+            <InlineNotice
+              type="success"
+              message={notice}
+              onDismiss={() => setNotice("")}
+            />
+          </div>
+        )}
+        {showForm && (
+          <div className="mb-8 rounded-2xl border border-teal-100 bg-[#f8fcfb] p-6">
+            <div className="mb-5 flex items-center justify-between">
+              <h3 className="text-xl font-extrabold">
+                {editing ? "Edit Specialization" : "Add Specialization"}
+              </h3>
+              <button
+                type="button"
+                onClick={resetForm}
+                className={`text-slate-400 hover:text-slate-700 ${focusClass}`}
+                aria-label="Close specialization form"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="grid gap-5 md:grid-cols-2">
+              <label className="text-sm font-bold">
+                Specialization Name
+                <input
+                  value={form.name}
+                  onChange={(event) =>
+                    setForm({ ...form, name: event.target.value })
+                  }
+                  className={`mt-2 w-full rounded-xl border border-slate-200 p-3 ${focusClass}`}
+                  placeholder="Frontend Developer"
+                />
+              </label>
+              <label className="text-sm font-bold">
+                Career Path
+                <select
+                  value={form.careerId}
+                  onChange={(event) =>
+                    setForm({ ...form, careerId: event.target.value })
+                  }
+                  className={`mt-2 w-full rounded-xl border border-slate-200 p-3 ${focusClass}`}
+                >
+                  <option value="">Select a career</option>
+                  {careers.map((career) => (
+                    <option key={career.id} value={career.id}>
+                      {career.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <SearchableMultiSelect
+                label="Required Skills"
+                options={skills.map((skill) => skill.name)}
+                values={form.requiredSkills}
+                onChange={(values) =>
+                  setForm({ ...form, requiredSkills: values })
+                }
+                max={Math.max(skills.length, 1)}
+              />
+              <SearchableMultiSelect
+                label="Recommended Electives"
+                options={electives.map((elective) => elective.name)}
+                values={form.recommendedElectives}
+                onChange={(values) =>
+                  setForm({ ...form, recommendedElectives: values })
+                }
+                max={Math.max(electives.length, 1)}
+              />
+            </div>
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => void save()}
+                disabled={saving}
+                className={`inline-flex items-center gap-2 rounded-xl bg-[#55b497] px-6 py-3 font-bold text-white disabled:opacity-60 ${focusClass}`}
+              >
+                <Save size={18} />
+                {saving ? "Saving..." : "Save Specialization"}
+              </button>
+              <button
+                type="button"
+                onClick={resetForm}
+                className={`inline-flex items-center gap-2 rounded-xl bg-slate-100 px-6 py-3 font-bold text-slate-700 ${focusClass}`}
+              >
+                <X size={18} />
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <caption className="sr-only">Career specializations</caption>
+            <thead>
+              <tr className="bg-[#eaf8f5]">
+                <th className="p-4">Specialization</th>
+                <th className="p-4">Career</th>
+                <th className="p-4">Required Skills</th>
+                <th className="p-4">Recommended Electives</th>
+                <th className="p-4">Record Info</th>
+                <th className="p-4">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-slate-500">
+                    Loading specializations...
+                  </td>
+                </tr>
+              ) : visible.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-slate-500">
+                    No specializations match the current search.
+                  </td>
+                </tr>
+              ) : (
+                visible.map((item) => (
+                  <tr key={item.id} className="border-b border-slate-100">
+                    <td className="p-4 font-bold">{item.name}</td>
+                    <td className="p-4">{item.career?.name ?? "-"}</td>
+                    <td className="p-4">
+                      <div className="flex flex-wrap gap-1">
+                        {item.required_skills.map((skill) => (
+                          <span
+                            key={skill}
+                            className="rounded-full border border-teal-100 bg-[#f8fcfb] px-2 py-1 text-xs"
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex flex-wrap gap-1">
+                        {item.recommended_electives.map((elective) => (
+                          <span
+                            key={elective}
+                            className="rounded-full bg-purple-50 px-2 py-1 text-xs text-purple-700"
+                          >
+                            {elective}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="p-4 text-xs text-slate-500">
+                      <p>Created by administrator</p>
+                      <p>
+                        Updated:{" "}
+                        {new Date(item.updated_at).toLocaleDateString()}
+                      </p>
+                    </td>
+                    <td className="p-4">
+                      <button
+                        type="button"
+                        onClick={() => openEditForm(item)}
+                        className={`inline-flex items-center gap-2 rounded-xl bg-[#eaf8f5] px-4 py-2 font-bold text-[#16806d] ${focusClass}`}
+                      >
+                        <Pencil size={16} />
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        {!loading && filtered.length > 0 && (
+          <TablePagination
+            page={page}
+            pageCount={pageCount}
+            count={filtered.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+          />
+        )}
+        {error && !loading && (
+          <button
+            type="button"
+            onClick={() => void load()}
+            className={`mt-4 rounded-xl bg-slate-900 px-4 py-2 font-bold text-white ${focusClass}`}
+          >
+            Retry loading specializations
+          </button>
+        )}
       </section>
     </AdminLayout>
   );

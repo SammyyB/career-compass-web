@@ -1,14 +1,19 @@
-import { useRef, useState } from "react";
-import StudentLayout from "../../components/StudentLayout";
+import { useEffect, useRef, useState } from "react";
 import {
-  User,
-  GraduationCap,
   Code2,
-  Trophy,
-  Target,
+  GraduationCap,
   Save,
-  Camera,
+  Target,
+  Upload,
+  User,
 } from "lucide-react";
+
+import StudentLayout from "../../components/StudentLayout";
+import SearchableMultiSelect from "../../components/SearchableMultiSelect";
+import { useAuth } from "../../context/AuthContext";
+import { supabase } from "../../lib/supabase";
+import type { Career } from "../../lib/types";
+import { listCareers, saveProfile } from "../../services/repository";
 
 const interestsList = [
   "Web Development",
@@ -17,6 +22,7 @@ const interestsList = [
   "Cloud Computing",
   "Cybersecurity",
   "UI/UX Design",
+  "Mobile Development",
 ];
 
 const technologiesList = [
@@ -25,300 +31,476 @@ const technologiesList = [
   "JavaScript",
   "React",
   "Node.js",
-  "Firebase",
+  "Supabase",
   "Python",
-  "SQL",
+  "MySQL",
+  "Git",
 ];
 
+const MAX_PROFILE_IMAGE_SIZE_BYTES = 2 * 1024 * 1024;
+
+type ProfileForm = {
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  studentId: string;
+  academicYear: string;
+  program: string;
+  careerTarget: string;
+};
+
+const emptyForm: ProfileForm = {
+  firstName: "",
+  middleName: "",
+  lastName: "",
+  studentId: "",
+  academicYear: "",
+  program: "",
+  careerTarget: "",
+};
+
+function validateProfileImage(file: File) {
+  if (!['image/png', 'image/jpeg'].includes(file.type)) {
+    return "Profile pictures must be PNG or JPG/JPEG files.";
+  }
+
+  if (file.size > MAX_PROFILE_IMAGE_SIZE_BYTES) {
+    return "The profile picture must be 2 MB or smaller.";
+  }
+
+  return "";
+}
+
 export default function Profile() {
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { profile, refreshProfile } = useAuth();
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const [form, setForm] = useState<ProfileForm>(emptyForm);
+  const [interests, setInterests] = useState<string[]>([]);
+  const [technologies, setTechnologies] = useState<string[]>([]);
+  const [careers, setCareers] = useState<Career[]>([]);
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
+  const [profileImagePreview, setProfileImagePreview] = useState("");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [imageBusy, setImageBusy] = useState(false);
 
-  const [profileImage, setProfileImage] = useState<string | null>(null);
-  const [name, setName] = useState("Juan Dela Cruz");
-  const [academicYear, setAcademicYear] = useState("1st Year");
-  const [experience, setExperience] = useState("Entry");
-  const [careerTarget, setCareerTarget] = useState("Web Developer");
+  useEffect(() => {
+    if (!profile) return;
 
-  const [interests, setInterests] = useState(["Web Development", "Networking"]);
-  const [technologies, setTechnologies] = useState(["HTML", "JavaScript"]);
+    setForm({
+      firstName: profile.first_name ?? "",
+      middleName: profile.middle_name ?? "",
+      lastName: profile.last_name ?? "",
+      studentId: profile.student_id ?? "",
+      academicYear: profile.academic_year ?? "",
+      program: profile.program ?? "",
+      careerTarget: profile.career_target ?? "",
+    });
+    setInterests(profile.interests ?? []);
+    setTechnologies(profile.technologies ?? []);
+  }, [profile]);
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  useEffect(() => {
+    let mounted = true;
 
+    const loadProfileImage = async () => {
+      if (!profile?.profile_image_path) {
+        setProfileImagePreview("");
+        return;
+      }
+
+      const { data, error: signedUrlError } = await supabase.storage
+        .from("avatars")
+        .createSignedUrl(profile.profile_image_path, 60 * 60);
+
+      if (signedUrlError) {
+        console.error("Unable to load profile picture:", signedUrlError.message);
+        return;
+      }
+
+      if (mounted) {
+        setProfileImagePreview(data.signedUrl);
+      }
+    };
+
+    void loadProfileImage();
+
+    return () => {
+      mounted = false;
+    };
+  }, [profile?.profile_image_path]);
+
+  useEffect(() => {
+    return () => {
+      if (profileImagePreview.startsWith("blob:")) {
+        URL.revokeObjectURL(profileImagePreview);
+      }
+    };
+  }, [profileImagePreview]);
+
+  useEffect(() => {
+    const loadCareers = async () => {
+      try {
+        setCareers(await listCareers());
+      } catch (loadError) {
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Unable to load career paths."
+        );
+      }
+    };
+
+    void loadCareers();
+  }, []);
+
+  const update = (key: keyof ProfileForm, value: string) => {
+    setForm((current) => ({ ...current, [key]: value }));
+    setMessage("");
+  };
+
+  const handleImageSelected = (file: File | null) => {
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      alert("Please upload an image file only.");
+    const fileError = validateProfileImage(file);
+
+    if (fileError) {
+      setProfileImageFile(null);
+      setError(fileError);
       return;
     }
 
-    const imageUrl = URL.createObjectURL(file);
-    setProfileImage(imageUrl);
+    setError("");
+    setMessage("");
+    setProfileImageFile(file);
+    setProfileImagePreview(URL.createObjectURL(file));
   };
 
-  const toggleItem = (
-    value: string,
-    list: string[],
-    setter: React.Dispatch<React.SetStateAction<string[]>>
-  ) => {
-    if (list.includes(value)) {
-      setter(list.filter((item) => item !== value));
-    } else {
-      setter([...list, value]);
+  const uploadProfileImage = async () => {
+    if (!profile || !profileImageFile) {
+      setError("Choose a PNG or JPG profile picture first.");
+      return;
+    }
+
+    const fileError = validateProfileImage(profileImageFile);
+    if (fileError) {
+      setError(fileError);
+      return;
+    }
+
+    setImageBusy(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const extension = profileImageFile.type === "image/png" ? "png" : "jpg";
+      const path = `${profile.id}/profile-${Date.now()}.${extension}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(path, profileImageFile, {
+          upsert: false,
+          contentType: profileImageFile.type,
+          cacheControl: "3600",
+        });
+
+      if (uploadError) throw uploadError;
+
+      await saveProfile(profile.id, {
+        profile_image_path: path,
+      });
+
+      const { data: signedImage, error: signedUrlError } = await supabase.storage
+        .from("avatars")
+        .createSignedUrl(path, 60 * 60);
+
+      if (signedUrlError) throw signedUrlError;
+
+      setProfileImagePreview(signedImage.signedUrl);
+      setProfileImageFile(null);
+      if (imageInputRef.current) imageInputRef.current.value = "";
+      await refreshProfile();
+      setMessage("Profile picture uploaded successfully.");
+    } catch (uploadError) {
+      setError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "Unable to upload the profile picture."
+      );
+    } finally {
+      setImageBusy(false);
     }
   };
 
-  const saveProfile = () => {
-    alert("Profile saved successfully!");
+  const handleSave = async () => {
+    if (!profile) return;
+
+    const normalizedStudentId = form.studentId.trim().toUpperCase();
+
+    if (!/^[A-Z0-9-]{4,20}$/.test(normalizedStudentId)) {
+      setError(
+        "Student ID must contain 4–20 letters, numbers, or hyphens. Example: 2024-00123."
+      );
+      return;
+    }
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await saveProfile(profile.id, {
+        first_name: form.firstName.trim(),
+        middle_name: form.middleName.trim(),
+        last_name: form.lastName.trim(),
+        student_id: normalizedStudentId,
+        academic_year: form.academicYear,
+        program: form.program.trim(),
+        career_target: form.careerTarget || null,
+        interests,
+        technologies,
+      });
+      await refreshProfile();
+      setMessage("Profile saved successfully.");
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error ? saveError.message : "Unable to save profile."
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <StudentLayout>
-      <section className="bg-gradient-to-r from-[#e1f8f4] to-[#f0fbf9] rounded-3xl p-9 mb-8 border border-teal-100 shadow-sm">
-        <p className="text-sm font-bold text-teal-700 uppercase tracking-wide">
+      <section className="mb-8 rounded-3xl border border-teal-100 bg-gradient-to-r from-[#e1f8f4] to-[#f0fbf9] p-9 shadow-sm">
+        <p className="text-sm font-bold uppercase tracking-wide text-teal-700">
           Edit Profile
         </p>
-
-        <h1 className="text-4xl font-extrabold mt-2">
-          Student Profile Settings
-        </h1>
-
-        <p className="text-slate-600 mt-3">
-          Update your academic details, target career, skills, and achievements.
+        <h1 className="mt-2 text-4xl font-extrabold">Student Profile Settings</h1>
+        <p className="mt-3 text-slate-600">
+          Keep your academic details, goals, interests, technologies, and profile
+          picture current.
         </p>
       </section>
 
-      <section className="grid xl:grid-cols-3 gap-6">
-        <div className="bg-white rounded-3xl p-8 border border-teal-100 shadow-sm">
-          <div className="w-40 h-40 rounded-full bg-[#eaf8f5] mx-auto flex items-center justify-center relative overflow-hidden border border-teal-100">
-            {profileImage ? (
+      {error && (
+        <p className="mb-6 rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700">
+          {error}
+        </p>
+      )}
+      {message && (
+        <p className="mb-6 rounded-2xl bg-green-50 p-4 text-sm font-semibold text-green-700">
+          {message}
+        </p>
+      )}
+
+      <section className="grid gap-6 xl:grid-cols-3">
+        <div className="rounded-3xl border border-teal-100 bg-white p-8 shadow-sm">
+          <div className="mx-auto flex h-40 w-40 items-center justify-center overflow-hidden rounded-full border border-teal-100 bg-[#eaf8f5]">
+            {profileImagePreview ? (
               <img
-                src={profileImage}
-                alt="Profile"
-                className="w-full h-full object-cover"
+                src={profileImagePreview}
+                alt="Student profile"
+                className="h-full w-full object-cover"
               />
             ) : (
               <User size={72} className="text-[#16806d]" />
             )}
-
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="absolute bottom-2 right-2 bg-[#55b497] text-white p-3 rounded-full shadow hover:bg-[#459b83]"
-            >
-              <Camera size={18} />
-            </button>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              className="hidden"
-            />
           </div>
 
-          <div className="mt-8">
-            <label className="text-sm font-bold text-slate-700">
-              Full Name
-            </label>
-
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full mt-2 p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-[#55b497]"
-              placeholder="Enter full name"
-            />
-          </div>
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/png,image/jpeg,.png,.jpg,.jpeg"
+            capture="user"
+            onChange={(event) => handleImageSelected(event.target.files?.[0] ?? null)}
+            className="hidden"
+          />
 
           <button
-            onClick={saveProfile}
-            className="mt-6 w-full bg-gradient-to-r from-[#1f8f78] to-[#36a889] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2"
+            type="button"
+            onClick={() => imageInputRef.current?.click()}
+            className="mt-6 w-full rounded-xl border border-teal-200 px-4 py-3 font-bold text-[#16806d] hover:bg-[#eaf8f5]"
+          >
+            Choose Profile Picture
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void uploadProfileImage()}
+            disabled={!profileImageFile || imageBusy}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#55b497] py-3 font-bold text-white disabled:opacity-50"
+          >
+            <Upload size={18} />
+            {imageBusy ? "Uploading..." : "Upload Picture"}
+          </button>
+
+          <p className="mt-3 text-center text-xs text-slate-500">
+            PNG or JPG/JPEG only · Maximum 2 MB · Square image recommended
+          </p>
+
+          <p className="mt-8 text-sm text-slate-500">Student ID</p>
+          <p className="font-bold">{profile?.student_id ?? "Not set"}</p>
+          <p className="mt-2 text-xs text-slate-500">
+            Format only: 4–20 letters, numbers, or hyphens. Example: 2024-00123.
+          </p>
+
+          <p className="mt-5 text-sm text-slate-500">Email</p>
+          <p className="break-all font-bold">{profile?.email ?? "Not set"}</p>
+
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={saving}
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1f8f78] to-[#36a889] py-3 font-bold text-white disabled:opacity-60"
           >
             <Save size={18} />
-            Save Profile
+            {saving ? "Saving..." : "Save Profile"}
           </button>
         </div>
 
-        <div className="xl:col-span-2 grid md:grid-cols-2 gap-6">
-          <div className="bg-white rounded-3xl p-7 border border-teal-100 shadow-sm">
-            <div className="flex items-center gap-3 mb-5">
-              <GraduationCap className="text-[#16806d]" />
-              <h2 className="text-xl font-extrabold">
-                Personal Information
-              </h2>
+        <div className="grid gap-6 xl:col-span-2 md:grid-cols-2">
+          <div className="rounded-3xl border border-teal-100 bg-white p-7 shadow-sm">
+            <div className="mb-5 flex items-center gap-3">
+              <User className="text-[#16806d]" />
+              <h2 className="text-xl font-extrabold">Personal Information</h2>
             </div>
 
             <div className="space-y-4">
-              <div>
-                <label className="text-sm font-semibold">Academic Year</label>
+              <label className="block text-sm font-semibold">
+                First Name
+                <input
+                  value={form.firstName}
+                  onChange={(event) => update("firstName", event.target.value)}
+                  className="mt-2 w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-[#55b497]"
+                />
+              </label>
+              <label className="block text-sm font-semibold">
+                Middle Name
+                <input
+                  value={form.middleName}
+                  onChange={(event) => update("middleName", event.target.value)}
+                  className="mt-2 w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-[#55b497]"
+                />
+              </label>
+              <label className="block text-sm font-semibold">
+                Surname
+                <input
+                  value={form.lastName}
+                  onChange={(event) => update("lastName", event.target.value)}
+                  className="mt-2 w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-[#55b497]"
+                />
+              </label>
+              <label className="block text-sm font-semibold">
+                Student ID
+                <input
+                  value={form.studentId}
+                  onChange={(event) =>
+                    update(
+                      "studentId",
+                      event.target.value
+                        .replace(/[^A-Za-z0-9-]/g, "")
+                        .toUpperCase()
+                    )
+                  }
+                  placeholder="Example: 2024-00123"
+                  className="mt-2 w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-[#55b497]"
+                />
+                <span className="mt-1 block text-xs font-normal text-slate-500">
+                  Format only; an administrator does not need to approve it.
+                </span>
+              </label>
+              <label className="block text-sm font-semibold">
+                Academic Year
                 <select
-                  value={academicYear}
-                  onChange={(e) => setAcademicYear(e.target.value)}
-                  className="w-full mt-2 p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-[#55b497]"
+                  value={form.academicYear}
+                  onChange={(event) => update("academicYear", event.target.value)}
+                  className="mt-2 w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-[#55b497]"
                 >
-                  <option>1st Year</option>
-                  <option>2nd Year</option>
-                  <option>3rd Year</option>
-                  <option>4th Year</option>
+                  <option value="">Select academic year</option>
+                  <option value="1st Year">1st Year</option>
+                  <option value="2nd Year">2nd Year</option>
+                  <option value="3rd Year">3rd Year</option>
+                  <option value="4th Year">4th Year</option>
                 </select>
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold">Experience Level</label>
-                <select
-                  value={experience}
-                  onChange={(e) => setExperience(e.target.value)}
-                  className="w-full mt-2 p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-[#55b497]"
-                >
-                  <option>Entry</option>
-                  <option>Junior</option>
-                  <option>Senior</option>
-                </select>
-              </div>
+              </label>
+              <label className="block text-sm font-semibold">
+                Program / Course
+                <input
+                  value={form.program}
+                  onChange={(event) => update("program", event.target.value)}
+                  className="mt-2 w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-[#55b497]"
+                />
+              </label>
             </div>
           </div>
 
-          <div className="bg-white rounded-3xl p-7 border border-teal-100 shadow-sm">
-            <div className="flex items-center gap-3 mb-5">
+          <div className="rounded-3xl border border-teal-100 bg-white p-7 shadow-sm">
+            <div className="mb-5 flex items-center gap-3">
               <Target className="text-[#16806d]" />
               <h2 className="text-xl font-extrabold">Career Target</h2>
             </div>
 
-            <label className="text-sm font-semibold">Current Career</label>
-            <select
-              value={careerTarget}
-              onChange={(e) => setCareerTarget(e.target.value)}
-              className="w-full mt-2 p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-[#55b497]"
-            >
-              <option>Web Developer</option>
-              <option>Data Analyst</option>
-              <option>Cloud Engineer</option>
-              <option>Cybersecurity Analyst</option>
-            </select>
+            <label className="text-sm font-semibold">
+              Current Career Target
+              <select
+                value={form.careerTarget}
+                onChange={(event) => update("careerTarget", event.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-[#55b497]"
+              >
+                <option value="">Select a target</option>
+                {careers.map((career) => (
+                  <option key={career.id} value={career.name}>
+                    {career.name}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-            <div className="mt-5 bg-[#eaf8f5] p-4 rounded-2xl">
+            <div className="mt-5 rounded-2xl bg-[#eaf8f5] p-4">
               <p className="text-sm text-slate-500">Selected Track</p>
               <p className="text-xl font-bold text-[#16806d]">
-                {careerTarget}
+                {form.careerTarget || "Not selected"}
               </p>
             </div>
           </div>
 
-          <div className="md:col-span-2 bg-white rounded-3xl p-7 border border-teal-100 shadow-sm">
-            <div className="flex items-center gap-3 mb-5">
+          <div className="rounded-3xl border border-teal-100 bg-white p-7 shadow-sm md:col-span-2">
+            <div className="mb-5 flex items-center gap-3">
               <Code2 className="text-[#16806d]" />
-              <h2 className="text-xl font-extrabold">
-                Interests & Technologies
-              </h2>
+              <h2 className="text-xl font-extrabold">Interests & Technologies</h2>
             </div>
 
-            <div className="grid lg:grid-cols-2 gap-6">
-              <div>
-                <label className="text-sm font-bold text-slate-700">
-                  Interests
-                </label>
-
-                <div className="grid sm:grid-cols-2 gap-3 mt-3">
-                  {interestsList.map((item) => (
-                    <label
-                      key={item}
-                      className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${
-                        interests.includes(item)
-                          ? "bg-[#eaf8f5] border-[#55b497] text-[#16806d]"
-                          : "border-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={interests.includes(item)}
-                        onChange={() =>
-                          toggleItem(item, interests, setInterests)
-                        }
-                        className="accent-[#55b497]"
-                      />
-                      <span className="text-sm font-semibold">{item}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-bold text-slate-700">
-                  Technologies
-                </label>
-
-                <div className="grid sm:grid-cols-2 gap-3 mt-3">
-                  {technologiesList.map((item) => (
-                    <label
-                      key={item}
-                      className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${
-                        technologies.includes(item)
-                          ? "bg-[#eaf8f5] border-[#55b497] text-[#16806d]"
-                          : "border-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={technologies.includes(item)}
-                        onChange={() =>
-                          toggleItem(item, technologies, setTechnologies)
-                        }
-                        className="accent-[#55b497]"
-                      />
-                      <span className="text-sm font-semibold">{item}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+            <div className="grid gap-6 lg:grid-cols-2">
+              <SearchableMultiSelect
+                label="Career Interests"
+                options={interestsList}
+                values={interests}
+                onChange={setInterests}
+                max={3}
+              />
+              <SearchableMultiSelect
+                label="Technologies"
+                options={technologiesList}
+                values={technologies}
+                onChange={setTechnologies}
+                max={5}
+              />
             </div>
           </div>
 
-          <div className="md:col-span-2 bg-white rounded-3xl p-7 border border-teal-100 shadow-sm">
-            <div className="flex items-center gap-3 mb-5">
+          <div className="rounded-3xl border border-teal-100 bg-white p-7 shadow-sm md:col-span-2">
+            <div className="mb-5 flex items-center gap-3">
               <GraduationCap className="text-[#16806d]" />
               <h2 className="text-xl font-extrabold">Academic Records</h2>
             </div>
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[
-                "Cloud Computing",
-                "Cybersecurity",
-                "Data Science",
-                "Database Management",
-                "Networking",
-                "Programming",
-                "Web Development",
-              ].map((subject) => (
-                <div key={subject}>
-                  <label className="text-sm font-semibold">{subject}</label>
-                  <select className="w-full mt-2 p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-[#55b497]">
-                    <option>95-100</option>
-                    <option>85-89</option>
-                    <option>80-84</option>
-                    <option>75-79</option>
-                    <option>Below 75</option>
-                  </select>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="md:col-span-2 bg-white rounded-3xl p-7 border border-teal-100 shadow-sm">
-            <div className="flex items-center gap-3 mb-5">
-              <Trophy className="text-[#16806d]" />
-              <h2 className="text-xl font-extrabold">
-                Progress & Achievements
-              </h2>
-            </div>
-
-            <textarea
-              rows={5}
-              className="w-full p-4 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-[#55b497]"
-              defaultValue={`Completed DevOps Fundamentals
-Portfolio: Personal Portfolio Website
-Project: REST API Integration Project`}
-            />
+            <p className="text-slate-600">
+              Grades are treated as indirect supporting information. Career
+              readiness is calculated primarily from the skill scores you save in
+              Skill Gap Analysis and the administrator&apos;s thresholds.
+            </p>
           </div>
         </div>
       </section>
