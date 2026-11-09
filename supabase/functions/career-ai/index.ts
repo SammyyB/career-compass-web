@@ -106,7 +106,22 @@ async function callGemini(
   );
 
   if (!result.ok) {
-    throw new Error("Gemini could not complete the request.");
+    let message = "Gemini could not complete the request.";
+
+    try {
+      const errorPayload = (await result.json()) as {
+        error?: { message?: unknown };
+      };
+      const providerMessage = errorPayload.error?.message;
+
+      if (typeof providerMessage === "string" && providerMessage.trim()) {
+        message = providerMessage.trim().slice(0, 500);
+      }
+    } catch {
+      // Keep the safe fallback when Gemini does not return JSON.
+    }
+
+    throw new Error(`Gemini error (${result.status}): ${message}`);
   }
 
   const payload = (await result.json()) as Record<string, unknown>;
@@ -221,6 +236,7 @@ async function main(request: Request) {
   if (action === "interview_questions") {
     const moduleName = text(body.module, 160) || "IT career preparation";
     const moduleContext = text(body.approved_module_context, MAX_CONTEXT_LENGTH);
+    const requestSeed = text(body.request_seed, 100) || crypto.randomUUID();
 
     return response(
       await callGemini(
@@ -230,7 +246,7 @@ async function main(request: Request) {
             role: "user",
             parts: [
               {
-                text: `Create exactly 5 interview questions for the student's target career. Use only the approved module context. Do not invent topics outside the module. Return concise questions suitable for a student. Module: ${moduleName}. Approved module context: ${moduleContext}. Career profile: ${JSON.stringify(careerProfile)}`,
+                text: `Create exactly 5 different interview questions for the student's target career. Use only the approved module context. Do not invent topics outside the module. Return concise questions suitable for a student. Avoid repeating common questions when possible. This is a new generation request with seed ${requestSeed}; use it to vary the question set. Module: ${moduleName}. Approved module context: ${moduleContext}. Career profile: ${JSON.stringify(careerProfile)}`,
               },
             ],
           },
@@ -376,6 +392,14 @@ Deno.serve(async (request) => {
     return await main(request);
   } catch (error) {
     console.error("career-ai request failed:", error instanceof Error ? error.message : "unknown error");
-    return response({ error: "The AI request could not be completed." }, 500);
+    return response(
+      {
+        error:
+          error instanceof Error
+            ? error.message.slice(0, 500)
+            : "The AI request could not be completed.",
+      },
+      500
+    );
   }
 });

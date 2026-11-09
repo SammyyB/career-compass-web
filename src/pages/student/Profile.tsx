@@ -343,9 +343,6 @@ export default function Profile() {
 
           <p className="mt-8 text-sm text-slate-500">Student ID</p>
           <p className="font-bold">{profile?.student_id ?? "Not set"}</p>
-          <p className="mt-2 text-xs text-slate-500">
-            Format only: 4–20 letters, numbers, or hyphens. Example: 2024-00123.
-          </p>
 
           <p className="mt-5 text-sm text-slate-500">Email</p>
           <p className="break-all font-bold">{profile?.email ?? "Not set"}</p>
@@ -408,9 +405,6 @@ export default function Profile() {
                   placeholder="Example: 2024-00123"
                   className="mt-2 w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-[#55b497]"
                 />
-                <span className="mt-1 block text-xs font-normal text-slate-500">
-                  Format only; an administrator does not need to approve it.
-                </span>
               </label>
               <label className="block text-sm font-semibold">
                 Academic Year
@@ -496,10 +490,9 @@ export default function Profile() {
               <GraduationCap className="text-[#16806d]" />
               <h2 className="text-xl font-extrabold">Academic Records</h2>
             </div>
-            <p className="text-slate-600">
-              Grades are treated as indirect supporting information. Career
-              readiness is calculated primarily from the skill scores you save in
-              Skill Gap Analysis and the administrator&apos;s thresholds.
+            <p className="text-sm text-slate-500">
+              Academic records are optional supporting information and are not
+              currently used by the AI career tools.
             </p>
           </div>
         </div>

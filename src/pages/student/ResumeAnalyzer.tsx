@@ -3,7 +3,8 @@ import { BarChart3, Download, FileText, Info, Sparkles, Upload, WifiOff } from "
 import { Link } from "react-router-dom";
 
 import StudentLayout from "../../components/StudentLayout";
-import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../context/AuthContext";
+import { invokeCareerAI } from "../../lib/careerAi";
 
 type ResumeAnalysisResponse = {
   analysis?: string;
@@ -49,6 +50,7 @@ async function fileToBase64(file: File) {
 }
 
 export default function ResumeAnalyzer() {
+  const { profile } = useAuth();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState("");
@@ -59,6 +61,15 @@ export default function ResumeAnalyzer() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
+
+  const profileComplete = Boolean(
+    profile?.first_name?.trim() &&
+      profile?.last_name?.trim() &&
+      profile?.program?.trim() &&
+      profile?.career_target?.trim() &&
+      profile?.interests?.length &&
+      profile?.technologies?.length
+  );
 
   useEffect(() => {
     const handleOnline = () => setOnline(true);
@@ -114,21 +125,12 @@ export default function ResumeAnalyzer() {
 
     try {
       const pdfBase64 = await fileToBase64(file);
-      const { data, error: functionError } = await supabase.functions.invoke(
-        "career-ai",
-        {
-          body: {
+      const result = await invokeCareerAI<ResumeAnalysisResponse>({
             action: "resume_analysis",
             file_name: file.name,
             mime_type: "application/pdf",
             pdf_base64: pdfBase64,
-          },
-        }
-      );
-
-      if (functionError) throw functionError;
-
-      const result = (data ?? {}) as ResumeAnalysisResponse;
+      });
       const nextAnalysis = result.analysis?.trim();
       const nextScore =
         typeof result.alignment_score === "number"
@@ -156,6 +158,13 @@ export default function ResumeAnalyzer() {
   };
 
   const generateResumeDraft = async () => {
+    if (!profileComplete) {
+      setError(
+        "Complete your first name, last name, program, career target, interests, and technologies in your Profile before generating a resume."
+      );
+      return;
+    }
+
     if (!online) {
       setError("Resume building requires an internet connection.");
       return;
@@ -166,16 +175,9 @@ export default function ResumeAnalyzer() {
     setStatus("Creating a resume draft from your saved profile...");
 
     try {
-      const { data, error: functionError } = await supabase.functions.invoke(
-        "career-ai",
-        {
-          body: { action: "resume_builder" },
-        }
-      );
-
-      if (functionError) throw functionError;
-
-      const result = (data ?? {}) as ResumeBuilderResponse;
+      const result = await invokeCareerAI<ResumeBuilderResponse>({
+        action: "resume_builder",
+      });
 
       if (!result.resume_markdown?.trim()) {
         throw new Error("The AI returned an empty resume draft.");
@@ -241,13 +243,13 @@ export default function ResumeAnalyzer() {
             <h2 className="text-2xl font-extrabold">AI Resume Builder</h2>
           </div>
           <p className="text-slate-600">
-            Uses your program, career target, interests, and technologies from
-            your Profile page.
+            Complete your career profile first so the generated draft is based
+            on your actual information.
           </p>
           <button
             type="button"
             onClick={() => void generateResumeDraft()}
-            disabled={busy || !online}
+            disabled={busy || !online || !profileComplete}
             className={`mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#55b497] px-6 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 ${focusClass}`}
           >
             <Sparkles size={18} />
@@ -257,7 +259,9 @@ export default function ResumeAnalyzer() {
             to="/profile"
             className={`mt-3 block text-center text-sm font-bold text-[#16806d] underline ${focusClass}`}
           >
-            Update profile information first
+            {profileComplete
+              ? "Update profile information if needed"
+              : "Complete your profile before generating a draft"}
           </Link>
         </div>
 

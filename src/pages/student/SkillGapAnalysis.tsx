@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 
 import StudentLayout from "../../components/StudentLayout";
+import GraphLegend from "../../components/GraphLegend";
 import { useAuth } from "../../context/AuthContext";
 import type { Career, Skill, StudentSkill } from "../../lib/types";
 import {
@@ -22,10 +23,12 @@ import {
   listStudentSkills,
   saveStudentSkill,
 } from "../../services/repository";
+import { useSearchParams } from "react-router-dom";
 
 type ScoreValues = Record<string, string>;
 
 export default function SkillGapAnalysis() {
+  const [searchParams] = useSearchParams();
   const { profile, session } = useAuth();
   const [careers, setCareers] = useState<Career[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -217,7 +220,7 @@ export default function SkillGapAnalysis() {
             <p className="font-bold text-slate-600">Total skill gap</p>
           </div>
           <p className="text-4xl font-extrabold text-orange-500">
-            {summary.gap} points
+            {summary.gap} percentage points
           </p>
           <p className="mt-2 text-sm text-slate-500">
             Points still needed across this career&apos;s required skills
@@ -241,9 +244,11 @@ export default function SkillGapAnalysis() {
           <div>
             <h2 className="text-2xl font-extrabold">Graph-Based Skill Comparison</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Teal shows your current score. Gray shows the required threshold.
+            Compare your saved score with the required threshold and the remaining skill gap.
             </p>
           </div>
+
+        <GraphLegend />
         </div>
 
         {!selectedCareer ? (
@@ -266,7 +271,7 @@ export default function SkillGapAnalysis() {
                     <p className="font-extrabold text-slate-800">{row.skillName}</p>
                     <p className="text-xs text-slate-500">
                       Current {Math.round(row.current)}% · Required {row.required}% ·
-                      Gap {Math.round(row.gap)}%
+                      Skill gap {Math.round(row.gap)} percentage points
                     </p>
                   </div>
 
@@ -300,7 +305,7 @@ export default function SkillGapAnalysis() {
                   )}
                 </div>
 
-                <div className="relative h-6 overflow-hidden rounded-full bg-slate-100">
+                <div className={`relative h-6 overflow-hidden rounded-full bg-slate-100 ${searchParams.get("skillId") === row.skill?.id ? "ring-4 ring-orange-200" : ""}`}>
                   <div
                     className="absolute h-6 rounded-full bg-slate-300"
                     style={{ width: `${row.required}%` }}
@@ -314,6 +319,7 @@ export default function SkillGapAnalysis() {
                 <div className="mt-2 flex justify-between text-xs">
                   <span className="font-semibold text-[#16806d]">Current score</span>
                   <span className="font-semibold text-slate-500">Required threshold</span>
+                  <span className="font-semibold text-orange-600">Skill gap: {Math.round(row.gap)} percentage points</span>
                 </div>
 
                 <div className="mt-2">
@@ -345,7 +351,7 @@ export default function SkillGapAnalysis() {
           <p className="rounded-2xl bg-[#f4fbfa] p-4 text-sm text-slate-700">
             <strong>Skill gap</strong>
             <br />
-            Required score − current score, never below zero.
+            Required score − current score, never below zero, measured in percentage points.
           </p>
           <p className="rounded-2xl bg-[#f4fbfa] p-4 text-sm text-slate-700">
             <strong>Skill readiness</strong>
@@ -359,8 +365,7 @@ export default function SkillGapAnalysis() {
           </p>
         </div>
         <p className="mt-4 text-sm text-slate-500">
-          Scores are saved in Supabase&apos;s <code>student_skills</code> table, so
-          the web and mobile applications use the same skill data.
+          Example: 60 current ÷ 80 required × 100 = 75% readiness.
         </p>
       </section>
     </StudentLayout>
