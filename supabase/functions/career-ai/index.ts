@@ -19,6 +19,8 @@ type Action =
   | "resume_builder";
 
 type ProfileContext = {
+  first_name: string;
+  last_name: string;
   program: string;
   career_target: string;
   interests: string[];
@@ -138,6 +140,8 @@ async function callGemini(
 
 function profileContext(row: Record<string, unknown> | null): ProfileContext {
   return {
+    first_name: text(row?.first_name, 120),
+    last_name: text(row?.last_name, 120),
     program: text(row?.program, 160),
     career_target: text(row?.career_target, 160),
     interests: stringArray(row?.interests),
@@ -199,7 +203,7 @@ async function main(request: Request) {
 
   const { data: profileRow, error: profileError } = await serviceClient
     .from("profiles")
-    .select("program, career_target, interests, technologies")
+    .select("first_name, last_name, program, career_target, interests, technologies")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -318,7 +322,7 @@ async function main(request: Request) {
             role: "user",
             parts: [
               {
-                text: `Create an honest one-page resume draft using only this career-related profile context. Do not invent employers, dates, grades, certificates, projects, or achievements. Use placeholders where personal information is missing. Make the draft suitable for an IT student targeting the stated career. Profile context: ${JSON.stringify(careerProfile)}`,
+                text: `Create an honest one-page resume draft using only this student's profile context. Include the student's first and last name at the top of the draft. Use the program, career target, interests, and technologies to personalize the draft. Do not invent employers, dates, grades, certificates, projects, or achievements. Use clear placeholders for any resume sections that are not provided. Make the draft suitable for an IT student targeting the stated career. Profile context: ${JSON.stringify(careerProfile)}`,
               },
             ],
           },
