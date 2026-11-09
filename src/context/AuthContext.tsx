@@ -73,9 +73,7 @@ export function getPasswordRuleMessage() {
 }
 
 function getRedirectUrl(flow: "signup" | "reset") {
-  // Do not put a HashRouter route here. Supabase places recovery tokens in the
-  // URL hash, and two hash fragments prevent Supabase from restoring the session.
-  return `${window.location.origin}${import.meta.env.BASE_URL}?auth_flow=${flow}`;
+  return `${window.location.origin}${import.meta.env.BASE_URL}#/update-password?flow=${flow}`;
 }
 
 function metadataFromDetails(details: StudentProfileDetails) {
@@ -125,22 +123,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session);
       if (data.session?.user) await loadProfile(data.session.user.id);
       setLoading(false);
-
-      const authFlow = new URLSearchParams(window.location.search).get(
-        "auth_flow"
-      );
-
-      if (
-        data.session &&
-        (authFlow === "reset" || authFlow === "signup")
-      ) {
-        window.history.replaceState(
-          null,
-          "",
-          `${window.location.origin}${import.meta.env.BASE_URL}`
-        );
-        window.location.hash = `/update-password?flow=${authFlow}`;
-      }
     };
 
     void initialize();
