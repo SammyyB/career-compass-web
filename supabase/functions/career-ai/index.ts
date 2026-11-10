@@ -6,7 +6,12 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const GEMINI_MODEL = "gemini-3.8-flash";
+const GEMINI_MODELS = [
+  "gemini-3.8-flash",
+  "gemini-3.7-flash",
+  "gemini-3.5-flash-lite",
+] as const;
+const GEMINI_RETRY_DELAYS_MS = [700, 1500];
 const MAX_ANSWER_LENGTH = 8_000;
 const MAX_CONTEXT_LENGTH = 8_000;
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
@@ -86,56 +91,75 @@ function extractGeminiText(payload: Record<string, unknown>) {
   return typeof firstPart?.text === "string" ? firstPart.text : "";
 }
 
+function wait(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 async function callGemini(
   apiKey: string,
   contents: Array<Record<string, unknown>>,
   responseSchema: GeminiSchema
 ) {
-  const result = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents,
-        generationConfig: {
-          temperature: 0.2,
-          responseMimeType: "application/json",
-          responseSchema,
-        },
-      }),
-    }
-  );
+  let lastError = "Gemini could not complete the request.";
 
-  if (!result.ok) {
-    let message = "Gemini could not complete the request.";
+  for (const model of GEMINI_MODELS) {
+    for (let attempt = 0; attempt <= GEMINI_RETRY_DELAYS_MS.length; attempt += 1) {
+      const result = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents,
+            generationConfig: {
+              responseMimeType: "application/json",
+              responseSchema,
+            },
+          }),
+        }
+      );
 
-    try {
-      const errorPayload = (await result.json()) as {
-        error?: { message?: unknown };
-      };
-      const providerMessage = errorPayload.error?.message;
+      if (result.ok) {
+        const payload = (await result.json()) as Record<string, unknown>;
+        const rawText = extractGeminiText(payload);
 
-      if (typeof providerMessage === "string" && providerMessage.trim()) {
-        message = providerMessage.trim().slice(0, 500);
+        if (!rawText) throw new Error("Gemini returned an empty response.");
+
+        try {
+          return JSON.parse(rawText) as Record<string, unknown>;
+        } catch {
+          throw new Error("Gemini returned an invalid structured response.");
+        }
       }
-    } catch {
-      // Keep the safe fallback when Gemini does not return JSON.
+
+      let message = "Gemini could not complete the request.";
+      try {
+        const errorPayload = (await result.json()) as {
+          error?: { message?: unknown };
+        };
+        const providerMessage = errorPayload.error?.message;
+        if (typeof providerMessage === "string" && providerMessage.trim()) {
+          message = providerMessage.trim().slice(0, 500);
+        }
+      } catch {
+        // Keep the safe fallback when Gemini does not return JSON.
+      }
+
+      lastError = `Gemini error (${result.status}): ${message}`;
+
+      // 503 means temporary capacity pressure. 429 may also recover after a
+      // short wait. Retry the current model, then move to the next fallback.
+      if (result.status !== 503 && result.status !== 429 && result.status !== 404) {
+        throw new Error(lastError);
+      }
+
+      if (attempt < GEMINI_RETRY_DELAYS_MS.length) {
+        await wait(GEMINI_RETRY_DELAYS_MS[attempt]);
+      }
     }
-
-    throw new Error(`Gemini error (${result.status}): ${message}`);
   }
 
-  const payload = (await result.json()) as Record<string, unknown>;
-  const rawText = extractGeminiText(payload);
-
-  if (!rawText) throw new Error("Gemini returned an empty response.");
-
-  try {
-    return JSON.parse(rawText) as Record<string, unknown>;
-  } catch {
-    throw new Error("Gemini returned an invalid structured response.");
-  }
+  throw new Error(lastError);
 }
 
 function profileContext(row: Record<string, unknown> | null): ProfileContext {
