@@ -63,6 +63,19 @@ type AuthEmailOtpType =
   | "email";
 
 const AuthContext = createContext<AuthContextType | null>(null);
+export const PROFILE_SETUP_PENDING_KEY = "career-compass:profile-setup-pending";
+
+export function isStudentProfileComplete(profile: Profile | null | undefined) {
+  return Boolean(
+    profile?.first_name?.trim() &&
+      profile.last_name?.trim() &&
+      profile.student_id?.trim() &&
+      profile.program?.trim() &&
+      profile.career_target?.trim() &&
+      profile.interests?.length &&
+      profile.technologies?.length
+  );
+}
 
 function getAuthErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;

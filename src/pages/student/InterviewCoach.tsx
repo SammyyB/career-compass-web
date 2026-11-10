@@ -13,7 +13,7 @@ import {
 
 import StudentLayout from "../../components/StudentLayout";
 import { useAuth } from "../../context/AuthContext";
-import { invokeCareerAI } from "../../lib/careerAi";
+import { supabase } from "../../lib/supabase";
 
 type InterviewQuestion = {
   question: string;
@@ -146,14 +146,22 @@ export default function InterviewCoach() {
     setStatus("Generating five questions from the approved modules...");
 
     try {
-      const result = await invokeCareerAI<QuestionsResponse>({
-        action: "interview_questions",
-        module: "IT career preparation",
-        request_seed: crypto.randomUUID(),
-        approved_module_context: fallbackQuestions
-          .map((item) => `${item.module}: ${item.context}`)
-          .join("\n"),
-      });
+      const { data, error: functionError } = await supabase.functions.invoke(
+        "career-ai",
+        {
+          body: {
+            action: "interview_questions",
+            module: "IT career preparation",
+            approved_module_context: fallbackQuestions
+              .map((item) => `${item.module}: ${item.context}`)
+              .join("\n"),
+          },
+        }
+      );
+
+      if (functionError) throw functionError;
+
+      const result = (data ?? {}) as QuestionsResponse;
       const generated = (result.questions ?? [])
         .filter(
           (item): item is { question: string; module: string } =>
@@ -183,7 +191,7 @@ export default function InterviewCoach() {
           ? generationError.message
           : "Unable to generate AI questions."
       );
-      setStatus("The built-in questions remain available. Fix the AI service and try again to generate a new set.");
+      setStatus("Built-in questions remain available while the AI service is unavailable.");
     } finally {
       setBusy(false);
     }
@@ -207,13 +215,22 @@ export default function InterviewCoach() {
     setStatus("Checking your answer against the selected module...");
 
     try {
-      const result = await invokeCareerAI<InterviewResponse>({
-        action: "interview_feedback",
-        question: currentQuestion.question,
-        answer: currentAnswer.trim(),
-        module: currentQuestion.module,
-        approved_module_context: currentQuestion.context,
-      });
+      const { data, error: functionError } = await supabase.functions.invoke(
+        "career-ai",
+        {
+          body: {
+            action: "interview_feedback",
+            question: currentQuestion.question,
+            answer: currentAnswer.trim(),
+            module: currentQuestion.module,
+            approved_module_context: currentQuestion.context,
+          },
+        }
+      );
+
+      if (functionError) throw functionError;
+
+      const result = (data ?? {}) as InterviewResponse;
       const nextFeedback = result.feedback?.trim();
       const nextScore =
         typeof result.score === "number"
