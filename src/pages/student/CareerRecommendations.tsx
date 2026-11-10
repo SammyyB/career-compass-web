@@ -1,11 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import {
-  Award,
-  BarChart3,
-  BriefcaseBusiness,
-  Layers,
-} from "lucide-react";
+import { Award, BarChart3, BriefcaseBusiness, Layers } from "lucide-react";
 
 import StudentLayout from "../../components/StudentLayout";
 import GraphLegend from "../../components/GraphLegend";
@@ -45,14 +40,19 @@ export default function CareerRecommendations() {
       setError("");
 
       try {
-        const [careerData, skillData, studentSkillData, specializationData, electiveData] =
-          await Promise.all([
-            listCareers(),
-            listSkills(),
-            listStudentSkills(session.user.id),
-            listSpecializations(),
-            listElectives(),
-          ]);
+        const [
+          careerData,
+          skillData,
+          studentSkillData,
+          specializationData,
+          electiveData,
+        ] = await Promise.all([
+          listCareers(),
+          listSkills(),
+          listStudentSkills(session.user.id),
+          listSpecializations(),
+          listElectives(),
+        ]);
 
         setCareers(careerData);
         setSkills(skillData);
@@ -63,7 +63,7 @@ export default function CareerRecommendations() {
         setError(
           loadError instanceof Error
             ? loadError.message
-            : "Unable to calculate career recommendations."
+            : "Unable to calculate career recommendations.",
         );
       } finally {
         setLoading(false);
@@ -80,28 +80,42 @@ export default function CareerRecommendations() {
         skills,
         studentSkills,
         profile?.academic_year,
-        profile?.career_target
+        profile?.career_target,
       ),
-    [careers, profile?.academic_year, profile?.career_target, skills, studentSkills]
+    [
+      careers,
+      profile?.academic_year,
+      profile?.career_target,
+      skills,
+      studentSkills,
+    ],
   );
 
-  const requestedCareerId = searchParams.get("careerId") ??
-    specializations.find((item) => item.id === searchParams.get("specializationId"))?.career_id;
-  const primary = rankedResults.find((item) => item.career.id === requestedCareerId) ?? rankedResults[0];
+  const requestedCareerId =
+    searchParams.get("careerId") ??
+    specializations.find(
+      (item) => item.id === searchParams.get("specializationId"),
+    )?.career_id;
+  const primary =
+    rankedResults.find((item) => item.career.id === requestedCareerId) ??
+    rankedResults[0];
   const results = primary
-    ? [primary, ...rankedResults.filter((item) => item.career.id !== primary.career.id)]
+    ? [
+        primary,
+        ...rankedResults.filter((item) => item.career.id !== primary.career.id),
+      ]
     : [];
   const primarySpecializations = specializations.filter(
-    (item) => item.career_id === primary?.career.id
+    (item) => item.career_id === primary?.career.id,
   );
   const primaryElectiveNames = new Set(
     primarySpecializations
       .flatMap((item) => item.recommended_electives)
       .map((name) => name.trim().toLowerCase())
-      .filter(Boolean)
+      .filter(Boolean),
   );
   const primaryElectives = electives.filter((elective) =>
-    primaryElectiveNames.has(elective.name.trim().toLowerCase())
+    primaryElectiveNames.has(elective.name.trim().toLowerCase()),
   );
 
   return (
@@ -154,7 +168,9 @@ export default function CareerRecommendations() {
               <div className="mt-8 grid gap-4 sm:grid-cols-3">
                 <div className="rounded-2xl bg-white/15 p-4">
                   <p className="text-sm text-emerald-50">Match score</p>
-                  <p className="mt-1 text-3xl font-extrabold">{primary.score}%</p>
+                  <p className="mt-1 text-3xl font-extrabold">
+                    {primary.score}%
+                  </p>
                 </div>
                 <div className="rounded-2xl bg-white/15 p-4">
                   <p className="text-sm text-emerald-50">Target level</p>
@@ -192,13 +208,20 @@ export default function CareerRecommendations() {
               </div>
 
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                {results.slice(1).length === 0 ? (
-                  <p className="text-slate-500">No secondary paths available.</p>
+                {results.slice(1, 4).length === 0 ? (
+                  <p className="text-slate-500">
+                    No secondary paths available.
+                  </p>
                 ) : (
-                  results.slice(1).map((result) => (
+                  results.slice(1, 4).map((result) => (
                     <div key={result.career.id}>
                       <div className="flex justify-between gap-3 font-bold">
-                        <span><span className="mr-2 inline-flex rounded-full bg-slate-100 px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide text-slate-600">Secondary</span>{result.career.name}</span>
+                        <span>
+                          <span className="mr-2 inline-flex rounded-full bg-slate-100 px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide text-slate-600">
+                            Secondary
+                          </span>
+                          {result.career.name}
+                        </span>
                         <span className="text-[#16806d]">{result.score}%</span>
                       </div>
                       <div className="mt-2 h-3 rounded-full bg-slate-100">
@@ -221,7 +244,9 @@ export default function CareerRecommendations() {
             <div className="mb-6 flex items-center gap-3">
               <BarChart3 className="text-[#16806d]" />
               <div>
-                <h2 className="text-2xl font-extrabold">Primary Career Skill Graph</h2>
+                <h2 className="text-2xl font-extrabold">
+                  Primary Career Skill Graph
+                </h2>
                 <p className="mt-1 text-sm text-slate-500">
                   The score is the average of current skill readiness against
                   the selected academic-year threshold.
@@ -251,7 +276,8 @@ export default function CareerRecommendations() {
                     />
                   </div>
                   <p className="mt-2 text-xs text-slate-500">
-                    Readiness: {Math.round(comparison.readiness)}% · Skill gap: {Math.round(comparison.gap)} percentage points
+                    Readiness: {Math.round(comparison.readiness)}% · Skill gap:{" "}
+                    {Math.round(comparison.gap)} percentage points
                   </p>
                 </div>
               ))}
@@ -280,7 +306,9 @@ export default function CareerRecommendations() {
                         {specialization.name}
                       </h3>
                       <p className="mt-2 text-sm text-slate-600">
-                        Skills: {specialization.required_skills.join(", ") || "Not specified"}
+                        Skills:{" "}
+                        {specialization.required_skills.join(", ") ||
+                          "Not specified"}
                       </p>
                     </div>
                   ))}
@@ -330,9 +358,16 @@ export default function CareerRecommendations() {
               ) : (
                 <div className="space-y-3">
                   {primaryElectives.map((elective) => (
-                    <div key={elective.id} className="rounded-2xl bg-[#eaf8f5] p-4">
-                      <p className="font-extrabold text-[#16806d]">{elective.name}</p>
-                      <p className="mt-1 text-sm text-slate-600">{elective.description}</p>
+                    <div
+                      key={elective.id}
+                      className="rounded-2xl bg-[#eaf8f5] p-4"
+                    >
+                      <p className="font-extrabold text-[#16806d]">
+                        {elective.name}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {elective.description}
+                      </p>
                     </div>
                   ))}
                 </div>

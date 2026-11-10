@@ -66,7 +66,7 @@ const emptyForm: ProfileForm = {
 };
 
 function validateProfileImage(file: File) {
-  if (!['image/png', 'image/jpeg'].includes(file.type)) {
+  if (!["image/png", "image/jpeg"].includes(file.type)) {
     return "Profile pictures must be PNG or JPG/JPEG files.";
   }
 
@@ -98,8 +98,15 @@ export default function Profile() {
   const [emailBusy, setEmailBusy] = useState(false);
 
   useEffect(() => {
-    if (setupMode && !setupSavedRef.current && isStudentProfileComplete(profile)) {
-      if (profile?.id && window.localStorage.getItem(PROFILE_SETUP_PENDING_KEY) === profile.id) {
+    if (
+      setupMode &&
+      !setupSavedRef.current &&
+      isStudentProfileComplete(profile)
+    ) {
+      if (
+        profile?.id &&
+        window.localStorage.getItem(PROFILE_SETUP_PENDING_KEY) === profile.id
+      ) {
         window.localStorage.removeItem(PROFILE_SETUP_PENDING_KEY);
       }
       navigate("/dashboard", { replace: true });
@@ -123,6 +130,13 @@ export default function Profile() {
   }, [profile]);
 
   useEffect(() => {
+    if (!message) return;
+
+    const timeout = window.setTimeout(() => setMessage(""), 3500);
+    return () => window.clearTimeout(timeout);
+  }, [message]);
+
+  useEffect(() => {
     let mounted = true;
 
     const loadProfileImage = async () => {
@@ -136,7 +150,10 @@ export default function Profile() {
         .createSignedUrl(profile.profile_image_path, 60 * 60);
 
       if (signedUrlError) {
-        console.error("Unable to load profile picture:", signedUrlError.message);
+        console.error(
+          "Unable to load profile picture:",
+          signedUrlError.message,
+        );
         return;
       }
 
@@ -168,7 +185,7 @@ export default function Profile() {
         setError(
           loadError instanceof Error
             ? loadError.message
-            : "Unable to load career paths."
+            : "Unable to load career paths.",
         );
       }
     };
@@ -188,10 +205,16 @@ export default function Profile() {
 
     try {
       await requestEmailChange(newEmail);
-      setMessage("Check your new email address for a confirmation link. If secure email change is enabled, confirm from both the old and new addresses.");
+      setMessage(
+        "Check your new email address for a confirmation link. If secure email change is enabled, confirm from both the old and new addresses.",
+      );
       setNewEmail("");
     } catch (emailError) {
-      setError(emailError instanceof Error ? emailError.message : "Unable to request an email change.");
+      setError(
+        emailError instanceof Error
+          ? emailError.message
+          : "Unable to request an email change.",
+      );
     } finally {
       setEmailBusy(false);
     }
@@ -248,9 +271,8 @@ export default function Profile() {
         profile_image_path: path,
       });
 
-      const { data: signedImage, error: signedUrlError } = await supabase.storage
-        .from("avatars")
-        .createSignedUrl(path, 60 * 60);
+      const { data: signedImage, error: signedUrlError } =
+        await supabase.storage.from("avatars").createSignedUrl(path, 60 * 60);
 
       if (signedUrlError) throw signedUrlError;
 
@@ -263,7 +285,7 @@ export default function Profile() {
       setError(
         uploadError instanceof Error
           ? uploadError.message
-          : "Unable to upload the profile picture."
+          : "Unable to upload the profile picture.",
       );
     } finally {
       setImageBusy(false);
@@ -284,7 +306,9 @@ export default function Profile() {
       ].filter(Boolean);
 
       if (missingFields.length > 0) {
-        setError(`Complete these required fields: ${missingFields.join(", ")}.`);
+        setError(
+          `Complete these required fields: ${missingFields.join(", ")}.`,
+        );
         return;
       }
     }
@@ -293,7 +317,7 @@ export default function Profile() {
 
     if (!/^[A-Z0-9-]{4,20}$/.test(normalizedStudentId)) {
       setError(
-        "Student ID must contain 4–20 letters, numbers, or hyphens. Example: 2024-00123."
+        "Student ID must contain 4–20 letters, numbers, or hyphens. Example: 2024-00123.",
       );
       return;
     }
@@ -323,7 +347,9 @@ export default function Profile() {
       }
     } catch (saveError) {
       setError(
-        saveError instanceof Error ? saveError.message : "Unable to save profile."
+        saveError instanceof Error
+          ? saveError.message
+          : "Unable to save profile.",
       );
     } finally {
       setSaving(false);
@@ -347,12 +373,17 @@ export default function Profile() {
       </section>
 
       {setupMode && (
-        <section className="mb-6 rounded-2xl border border-teal-200 bg-white p-5 shadow-sm sm:p-6" role="status">
-          <h2 className="font-extrabold text-[#16806d]">A few details are needed</h2>
+        <section
+          className="mb-6 rounded-2xl border border-teal-200 bg-white p-5 shadow-sm sm:p-6"
+          role="status"
+        >
+          <h2 className="font-extrabold text-[#16806d]">
+            A few details are needed
+          </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Complete your first and last name, Student ID, program, career target,
-            at least one interest, and at least one technology. Your dashboard
-            will open after you save a complete profile.
+            Complete your first and last name, Student ID, program, career
+            target, at least one interest, and at least one technology. Your
+            dashboard will open after you save a complete profile.
           </p>
         </section>
       )}
@@ -363,12 +394,16 @@ export default function Profile() {
         </p>
       )}
       {message && (
-        <p className="mb-6 rounded-2xl bg-green-50 p-4 text-sm font-semibold text-green-700">
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed right-5 top-5 z-[100] max-w-[calc(100vw-2.5rem)] rounded-2xl border border-green-200 bg-white px-5 py-4 text-sm font-bold text-green-700 shadow-xl"
+        >
           {message}
-        </p>
+        </div>
       )}
 
-      <section className="grid min-w-0 gap-6 xl:grid-cols-3">
+      <section className="grid min-w-0 items-start gap-6 xl:grid-cols-3">
         <div className="min-w-0 rounded-3xl border border-teal-100 bg-white p-5 shadow-sm sm:p-8">
           <div className="mx-auto flex h-40 w-40 items-center justify-center overflow-hidden rounded-full border border-teal-100 bg-[#eaf8f5]">
             {profileImagePreview ? (
@@ -387,7 +422,9 @@ export default function Profile() {
             type="file"
             accept="image/png,image/jpeg,.png,.jpg,.jpeg"
             capture="user"
-            onChange={(event) => handleImageSelected(event.target.files?.[0] ?? null)}
+            onChange={(event) =>
+              handleImageSelected(event.target.files?.[0] ?? null)
+            }
             className="hidden"
           />
 
@@ -417,10 +454,14 @@ export default function Profile() {
           <p className="font-bold">{profile?.student_id ?? "Not set"}</p>
 
           <p className="mt-5 text-sm text-slate-500">Email</p>
-          <p className="break-all font-bold">{session?.user.email ?? profile?.email ?? "Not set"}</p>
+          <p className="break-all font-bold">
+            {session?.user.email ?? profile?.email ?? "Not set"}
+          </p>
 
           <div className="mt-4 rounded-2xl bg-[#f4fbfa] p-4">
-            <label htmlFor="new-account-email" className="text-sm font-bold">Change account email</label>
+            <label htmlFor="new-account-email" className="text-sm font-bold">
+              Change account email
+            </label>
             <input
               id="new-account-email"
               type="email"
@@ -437,7 +478,9 @@ export default function Profile() {
               className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-teal-200 px-4 py-3 font-bold text-[#16806d] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Mail size={17} />
-              {emailBusy ? "Sending confirmation..." : "Send email change confirmation"}
+              {emailBusy
+                ? "Sending confirmation..."
+                : "Send email change confirmation"}
             </button>
           </div>
 
@@ -493,7 +536,7 @@ export default function Profile() {
                       "studentId",
                       event.target.value
                         .replace(/[^A-Za-z0-9-]/g, "")
-                        .toUpperCase()
+                        .toUpperCase(),
                     )
                   }
                   placeholder="Example: 2024-00123"
@@ -504,7 +547,9 @@ export default function Profile() {
                 Academic Year
                 <select
                   value={form.academicYear}
-                  onChange={(event) => update("academicYear", event.target.value)}
+                  onChange={(event) =>
+                    update("academicYear", event.target.value)
+                  }
                   className="mt-2 w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-[#55b497]"
                 >
                   <option value="">Select academic year</option>
@@ -530,7 +575,7 @@ export default function Profile() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-teal-100 bg-white p-7 shadow-sm">
+          <div className="self-start rounded-3xl border border-teal-100 bg-white p-7 shadow-sm">
             <div className="mb-5 flex items-center gap-3">
               <Target className="text-[#16806d]" />
               <h2 className="text-xl font-extrabold">Career Target</h2>
@@ -563,7 +608,9 @@ export default function Profile() {
           <div className="rounded-3xl border border-teal-100 bg-white p-7 shadow-sm md:col-span-2 xl:col-span-3">
             <div className="mb-5 flex items-center gap-3">
               <Code2 className="text-[#16806d]" />
-              <h2 className="text-xl font-extrabold">Interests & Technologies</h2>
+              <h2 className="text-xl font-extrabold">
+                Interests & Technologies
+              </h2>
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">
