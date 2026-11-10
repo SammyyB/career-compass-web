@@ -75,6 +75,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchRecords, setSearchRecords] = useState<SearchResult[]>([]);
@@ -100,17 +101,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, []);
-
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 1024) {
-        setMenuOpen(false);
-      }
-    };
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   const loadNotifications = async () => {
@@ -265,6 +255,25 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     setNotificationOpen(nextValue);
     if (nextValue) void loadNotifications();
   };
+  const toggleSidebar = () => {
+    if (window.innerWidth >= 1024) {
+      setDesktopSidebarCollapsed((current) => !current);
+    } else {
+      setMenuOpen((current) => !current);
+    }
+  };
+  const closeSidebar = () => {
+    if (window.innerWidth >= 1024) {
+      setDesktopSidebarCollapsed(true);
+    } else {
+      setMenuOpen(false);
+    }
+  };
+  const sidebarClassName = menuOpen
+    ? "translate-x-0"
+    : desktopSidebarCollapsed
+      ? "-translate-x-full"
+      : "-translate-x-full lg:translate-x-0";
 
   return (
     <div className="admin-theme flex min-h-screen bg-[#f1f5f9] text-slate-800">
@@ -279,7 +288,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       <aside
         id="admin-navigation"
-        className={`${menuOpen ? "translate-x-0" : "-translate-x-full"} fixed left-0 top-0 z-50 h-screen h-[100dvh] min-h-screen w-[min(300px,calc(100vw-1rem))] max-w-full overflow-x-hidden overflow-y-auto border-r border-slate-700 bg-gradient-to-b from-[#0f1b33] to-[#17243d] px-4 py-8 pb-24 text-white sm:px-5 transition-transform lg:translate-x-0`}
+        className={`${sidebarClassName} fixed left-0 top-0 z-50 h-screen h-[100dvh] min-h-screen w-[min(300px,calc(100vw-1rem))] max-w-full overflow-x-hidden overflow-y-auto border-r border-slate-700 bg-gradient-to-b from-[#0f1b33] to-[#17243d] px-4 py-8 pb-24 text-white transition-transform duration-200 sm:px-5`}
         aria-label="Administrator navigation"
       >
         <div className="relative mb-10 min-w-0 pr-10">
@@ -300,16 +309,16 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <p className="mt-1 text-sm text-slate-300">Admin Portal</p>
             </div>
           </NavLink>
-          {menuOpen && (
+          {!desktopSidebarCollapsed || menuOpen ? (
             <button
               type="button"
-              onClick={() => setMenuOpen(false)}
-              className={`absolute right-0 top-0 z-10 rounded-lg p-2 text-slate-600 lg:hidden ${focusClass}`}
+              onClick={closeSidebar}
+              className={`absolute right-0 top-0 z-10 rounded-lg p-2 text-slate-300 hover:bg-white/10 hover:text-white ${focusClass}`}
               aria-label="Close menu"
             >
               <X size={22} />
             </button>
-          )}
+          ) : null}
         </div>
 
         <nav className="space-y-3">
@@ -340,15 +349,20 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </button>
       </aside>
 
-      <div className="w-full flex-1 lg:ml-[300px]">
+      <div
+        className={`w-full min-w-0 flex-1 transition-[margin] duration-200 ${desktopSidebarCollapsed ? "lg:ml-0" : "lg:ml-[300px]"}`}
+      >
         <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-2 border-b border-slate-700 bg-[#0f1b33] px-3 text-white shadow-sm sm:min-h-20 sm:gap-4 sm:px-5 lg:px-10">
           <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
             <button
               type="button"
-              onClick={() => setMenuOpen((open) => !open)}
-              className={`shrink-0 text-white lg:hidden ${focusClass}`}
+              onClick={toggleSidebar}
+              className={`shrink-0 rounded-lg p-1 text-white hover:bg-white/10 ${focusClass}`}
               aria-label="Toggle admin menu"
-              aria-expanded={menuOpen}
+              aria-expanded={
+                !desktopSidebarCollapsed &&
+                (menuOpen || window.innerWidth >= 1024)
+              }
               aria-controls="admin-navigation"
             >
               <Menu size={28} />

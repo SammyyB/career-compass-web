@@ -39,8 +39,8 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f4fbfa] text-slate-900">
-      <header className="bg-white/90 backdrop-blur border-b border-teal-100 shadow-sm">
+    <div className="min-h-screen bg-[#f1f5f9] text-slate-900">
+      <header className="border-b border-slate-700 bg-[#0f1b33] shadow-sm">
         <div className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-8 sm:py-5 lg:px-12">
           <Link to="/" className="flex min-w-0 items-center gap-3 sm:gap-4">
             <img
@@ -49,15 +49,15 @@ export default function AdminLogin() {
               className="h-12 w-12 shrink-0 object-contain sm:h-16 sm:w-16"
             />
             <div className="min-w-0">
-              <h1 className="text-lg font-extrabold text-[#16806d] sm:text-2xl">
+              <h1 className="text-lg font-extrabold text-white sm:text-2xl">
                 Career Compass
               </h1>
-              <p className="text-xs text-slate-500">Administrator portal</p>
+              <p className="text-xs text-slate-300">Administrator portal</p>
             </div>
           </Link>
           <Link
             to="/"
-            className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#eaf8f5] px-3 py-2 text-sm font-bold text-[#16806d] transition hover:bg-teal-100 sm:px-6 sm:py-3 sm:text-base"
+            className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#334155] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#475569] sm:px-6 sm:py-3 sm:text-base"
           >
             <ArrowLeft size={16} /> Back to Landing
           </Link>
