@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   ChevronLeft,
@@ -100,6 +100,7 @@ export default function InterviewCoach() {
   const [online, setOnline] = useState(() => navigator.onLine);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const currentQuestion = questions[questionIndex];
   const careerTarget = profile?.career_target?.trim() ?? "";
@@ -266,6 +267,13 @@ export default function InterviewCoach() {
   };
 
   const startVoiceInput = () => {
+    if (listening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+      setListening(false);
+      return;
+    }
+
     const browserWindow = window as Window & {
       SpeechRecognition?: SpeechRecognitionConstructor;
       webkitSpeechRecognition?: SpeechRecognitionConstructor;
@@ -291,14 +299,19 @@ export default function InterviewCoach() {
       updateAnswer(`${currentAnswer} ${transcript}`.trim());
     };
     recognition.onerror = () => {
+      recognitionRef.current = null;
       setListening(false);
       setError(
         "Microphone input could not be started. Check your browser permission.",
       );
     };
-    recognition.onend = () => setListening(false);
+    recognition.onend = () => {
+      recognitionRef.current = null;
+      setListening(false);
+    };
 
     setError("");
+    recognitionRef.current = recognition;
     setListening(true);
     recognition.start();
   };
@@ -406,11 +419,11 @@ export default function InterviewCoach() {
               <button
                 type="button"
                 onClick={startVoiceInput}
-                disabled={listening || busy}
+                disabled={busy}
                 className={`inline-flex items-center gap-2 rounded-xl border border-teal-200 px-4 py-3 font-bold text-[#16806d] disabled:opacity-60 ${focusClass}`}
               >
                 <Mic size={18} />
-                {listening ? "Listening..." : "Use microphone"}
+                {listening ? "Stop listening" : "Use microphone"}
               </button>
               <button
                 type="submit"
