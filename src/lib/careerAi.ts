@@ -7,6 +7,8 @@ async function getUserMessage(error: EdgeFunctionError) {
 
   if (context?.status === 401) return "Your session expired. Please sign in again.";
   if (context?.status === 429) return "You have reached the daily AI usage limit. Please try again tomorrow.";
+  if (context?.status === 503) return "The AI service is not configured yet. Please contact the administrator.";
+  if (context?.status === 400) return "The AI request could not be processed. Check your profile information and try again.";
   return "The AI service is temporarily unavailable. Please try again later.";
 }
 

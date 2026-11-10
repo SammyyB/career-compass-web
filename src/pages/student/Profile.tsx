@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Code2,
   GraduationCap,
+  Mail,
   Save,
   Target,
   Upload,
@@ -10,7 +12,11 @@ import {
 
 import StudentLayout from "../../components/StudentLayout";
 import SearchableMultiSelect from "../../components/SearchableMultiSelect";
-import { useAuth } from "../../context/AuthContext";
+import {
+  isStudentProfileComplete,
+  PROFILE_SETUP_PENDING_KEY,
+  useAuth,
+} from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
 import type { Career } from "../../lib/types";
 import { listCareers, saveProfile } from "../../services/repository";
@@ -72,8 +78,12 @@ function validateProfileImage(file: File) {
 }
 
 export default function Profile() {
-  const { profile, refreshProfile } = useAuth();
+  const { profile, session, refreshProfile, requestEmailChange } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const setupMode = searchParams.get("setup") === "1";
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const setupSavedRef = useRef(false);
   const [form, setForm] = useState<ProfileForm>(emptyForm);
   const [interests, setInterests] = useState<string[]>([]);
   const [technologies, setTechnologies] = useState<string[]>([]);
@@ -84,6 +94,17 @@ export default function Profile() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [imageBusy, setImageBusy] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+
+  useEffect(() => {
+    if (setupMode && !setupSavedRef.current && isStudentProfileComplete(profile)) {
+      if (profile?.id && window.localStorage.getItem(PROFILE_SETUP_PENDING_KEY) === profile.id) {
+        window.localStorage.removeItem(PROFILE_SETUP_PENDING_KEY);
+      }
+      navigate("/dashboard", { replace: true });
+    }
+  }, [navigate, profile, setupMode]);
 
   useEffect(() => {
     if (!profile) return;
@@ -158,6 +179,22 @@ export default function Profile() {
   const update = (key: keyof ProfileForm, value: string) => {
     setForm((current) => ({ ...current, [key]: value }));
     setMessage("");
+  };
+
+  const handleEmailChange = async () => {
+    setError("");
+    setMessage("");
+    setEmailBusy(true);
+
+    try {
+      await requestEmailChange(newEmail);
+      setMessage("Check your new email address for a confirmation link. If secure email change is enabled, confirm from both the old and new addresses.");
+      setNewEmail("");
+    } catch (emailError) {
+      setError(emailError instanceof Error ? emailError.message : "Unable to request an email change.");
+    } finally {
+      setEmailBusy(false);
+    }
   };
 
   const handleImageSelected = (file: File | null) => {
@@ -236,6 +273,22 @@ export default function Profile() {
   const handleSave = async () => {
     if (!profile) return;
 
+    if (setupMode) {
+      const missingFields = [
+        !form.firstName.trim() && "First name",
+        !form.lastName.trim() && "Last name",
+        !form.program.trim() && "Program",
+        !form.careerTarget.trim() && "Career target",
+        interests.length === 0 && "At least one interest",
+        technologies.length === 0 && "At least one technology",
+      ].filter(Boolean);
+
+      if (missingFields.length > 0) {
+        setError(`Complete these required fields: ${missingFields.join(", ")}.`);
+        return;
+      }
+    }
+
     const normalizedStudentId = form.studentId.trim().toUpperCase();
 
     if (!/^[A-Z0-9-]{4,20}$/.test(normalizedStudentId)) {
@@ -262,7 +315,12 @@ export default function Profile() {
         technologies,
       });
       await refreshProfile();
-      setMessage("Profile saved successfully.");
+      setMessage("Profile updated successfully.");
+      if (setupMode) {
+        setupSavedRef.current = true;
+        window.localStorage.removeItem(PROFILE_SETUP_PENDING_KEY);
+        window.setTimeout(() => navigate("/dashboard", { replace: true }), 900);
+      }
     } catch (saveError) {
       setError(
         saveError instanceof Error ? saveError.message : "Unable to save profile."
@@ -276,14 +334,28 @@ export default function Profile() {
     <StudentLayout>
       <section className="mb-8 rounded-3xl border border-teal-100 bg-gradient-to-r from-[#e1f8f4] to-[#f0fbf9] p-9 shadow-sm">
         <p className="text-sm font-bold uppercase tracking-wide text-teal-700">
-          Edit Profile
+          {setupMode ? "Welcome to Career Compass" : "Edit Profile"}
         </p>
-        <h1 className="mt-2 text-4xl font-extrabold">Student Profile Settings</h1>
+        <h1 className="mt-2 text-4xl font-extrabold">
+          {setupMode ? "Complete Your Profile" : "Student Profile Settings"}
+        </h1>
         <p className="mt-3 text-slate-600">
-          Keep your academic details, goals, interests, technologies, and profile
-          picture current.
+          {setupMode
+            ? "Add your student details and career interests to finish setting up your account."
+            : "Keep your academic details, goals, interests, technologies, and profile picture current."}
         </p>
       </section>
+
+      {setupMode && (
+        <section className="mb-6 rounded-2xl border border-teal-200 bg-white p-5 shadow-sm sm:p-6" role="status">
+          <h2 className="font-extrabold text-[#16806d]">A few details are needed</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Complete your first and last name, Student ID, program, career target,
+            at least one interest, and at least one technology. Your dashboard
+            will open after you save a complete profile.
+          </p>
+        </section>
+      )}
 
       {error && (
         <p className="mb-6 rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700">
@@ -296,8 +368,8 @@ export default function Profile() {
         </p>
       )}
 
-      <section className="grid gap-6 xl:grid-cols-3">
-        <div className="rounded-3xl border border-teal-100 bg-white p-8 shadow-sm">
+      <section className="grid min-w-0 gap-6 xl:grid-cols-3">
+        <div className="min-w-0 rounded-3xl border border-teal-100 bg-white p-5 shadow-sm sm:p-8">
           <div className="mx-auto flex h-40 w-40 items-center justify-center overflow-hidden rounded-full border border-teal-100 bg-[#eaf8f5]">
             {profileImagePreview ? (
               <img
@@ -343,12 +415,31 @@ export default function Profile() {
 
           <p className="mt-8 text-sm text-slate-500">Student ID</p>
           <p className="font-bold">{profile?.student_id ?? "Not set"}</p>
-          <p className="mt-2 text-xs text-slate-500">
-            Format only: 4–20 letters, numbers, or hyphens. Example: 2024-00123.
-          </p>
 
           <p className="mt-5 text-sm text-slate-500">Email</p>
-          <p className="break-all font-bold">{profile?.email ?? "Not set"}</p>
+          <p className="break-all font-bold">{session?.user.email ?? profile?.email ?? "Not set"}</p>
+
+          <div className="mt-4 rounded-2xl bg-[#f4fbfa] p-4">
+            <label htmlFor="new-account-email" className="text-sm font-bold">Change account email</label>
+            <input
+              id="new-account-email"
+              type="email"
+              autoComplete="email"
+              value={newEmail}
+              onChange={(event) => setNewEmail(event.target.value)}
+              placeholder="New email address"
+              className="mt-2 w-full rounded-xl border border-slate-200 bg-white p-3 outline-none focus:ring-2 focus:ring-[#55b497]"
+            />
+            <button
+              type="button"
+              onClick={() => void handleEmailChange()}
+              disabled={emailBusy || !newEmail.trim()}
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-teal-200 px-4 py-3 font-bold text-[#16806d] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Mail size={17} />
+              {emailBusy ? "Sending confirmation..." : "Send email change confirmation"}
+            </button>
+          </div>
 
           <button
             type="button"
@@ -361,8 +452,8 @@ export default function Profile() {
           </button>
         </div>
 
-        <div className="grid gap-6 xl:col-span-2 md:grid-cols-2">
-          <div className="rounded-3xl border border-teal-100 bg-white p-7 shadow-sm">
+        <div className="grid min-w-0 gap-6 xl:col-span-2 md:grid-cols-2">
+          <div className="min-w-0 rounded-3xl border border-teal-100 bg-white p-5 shadow-sm sm:p-7">
             <div className="mb-5 flex items-center gap-3">
               <User className="text-[#16806d]" />
               <h2 className="text-xl font-extrabold">Personal Information</h2>
@@ -408,9 +499,6 @@ export default function Profile() {
                   placeholder="Example: 2024-00123"
                   className="mt-2 w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-[#55b497]"
                 />
-                <span className="mt-1 block text-xs font-normal text-slate-500">
-                  Format only; an administrator does not need to approve it.
-                </span>
               </label>
               <label className="block text-sm font-semibold">
                 Academic Year
@@ -428,11 +516,16 @@ export default function Profile() {
               </label>
               <label className="block text-sm font-semibold">
                 Program / Course
-                <input
+                <select
                   value={form.program}
                   onChange={(event) => update("program", event.target.value)}
                   className="mt-2 w-full rounded-xl border border-slate-200 p-3 outline-none focus:ring-2 focus:ring-[#55b497]"
-                />
+                >
+                  <option value="">Select program / course</option>
+                  <option value="Bachelor of Science in Information Technology">
+                    Bachelor of Science in Information Technology
+                  </option>
+                </select>
               </label>
             </div>
           </div>
@@ -496,10 +589,9 @@ export default function Profile() {
               <GraduationCap className="text-[#16806d]" />
               <h2 className="text-xl font-extrabold">Academic Records</h2>
             </div>
-            <p className="text-slate-600">
-              Grades are treated as indirect supporting information. Career
-              readiness is calculated primarily from the skill scores you save in
-              Skill Gap Analysis and the administrator&apos;s thresholds.
+            <p className="text-sm text-slate-500">
+              Academic records are optional supporting information and are not
+              currently used by the AI career tools.
             </p>
           </div>
         </div>

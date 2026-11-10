@@ -5,7 +5,6 @@ import {
   BookOpen,
   CheckCircle2,
   GraduationCap,
-  TrendingUp,
 } from "lucide-react";
 
 import StudentLayout from "../../components/StudentLayout";
@@ -25,6 +24,8 @@ import {
   listSkills,
   listSpecializations,
   listStudentSkills,
+  listCompletedStudentElectives,
+  setStudentElectiveCompleted,
 } from "../../services/repository";
 
 export default function ElectiveRecommendations() {
@@ -37,6 +38,10 @@ export default function ElectiveRecommendations() {
   const [specializations, setSpecializations] = useState<Specialization[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [completedElectiveIds, setCompletedElectiveIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [updatingElectiveId, setUpdatingElectiveId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!session?.user.id) return;
@@ -46,30 +51,27 @@ export default function ElectiveRecommendations() {
       setError("");
 
       try {
-        const [
-          careerData,
-          skillData,
-          studentSkillData,
-          mappingData,
-          specializationData,
-        ] = await Promise.all([
-          listCareers(),
-          listSkills(),
-          listStudentSkills(session.user.id),
-          listElectiveMappings(),
-          listSpecializations(),
-        ]);
+        const [careerData, skillData, studentSkillData, mappingData, specializationData, completedData] =
+          await Promise.all([
+            listCareers(),
+            listSkills(),
+            listStudentSkills(session.user.id),
+            listElectiveMappings(),
+            listSpecializations(),
+            listCompletedStudentElectives(session.user.id),
+          ]);
 
         setCareers(careerData);
         setSkills(skillData);
         setStudentSkills(studentSkillData);
         setMappings(mappingData);
         setSpecializations(specializationData);
+        setCompletedElectiveIds(new Set(completedData.map((item) => item.elective_id)));
       } catch (loadError) {
         setError(
           loadError instanceof Error
             ? loadError.message
-            : "Unable to load elective recommendations.",
+            : "Unable to load elective recommendations."
         );
       } finally {
         setLoading(false);
@@ -79,6 +81,27 @@ export default function ElectiveRecommendations() {
     void load();
   }, [session?.user.id]);
 
+  const toggleCompleted = async (electiveId: string) => {
+    if (!session?.user.id) return;
+
+    const completed = !completedElectiveIds.has(electiveId);
+    setUpdatingElectiveId(electiveId);
+    setError("");
+    try {
+      await setStudentElectiveCompleted(session.user.id, electiveId, completed);
+      setCompletedElectiveIds((current) => {
+        const next = new Set(current);
+        if (completed) next.add(electiveId);
+        else next.delete(electiveId);
+        return next;
+      });
+    } catch (toggleError) {
+      setError(toggleError instanceof Error ? toggleError.message : "Unable to update elective status.");
+    } finally {
+      setUpdatingElectiveId(null);
+    }
+  };
+
   const rankedCareers = useMemo(
     () =>
       rankCareers(
@@ -86,15 +109,9 @@ export default function ElectiveRecommendations() {
         skills,
         studentSkills,
         profile?.academic_year,
-        profile?.career_target,
+        profile?.career_target
       ),
-    [
-      careers,
-      profile?.academic_year,
-      profile?.career_target,
-      skills,
-      studentSkills,
-    ],
+    [careers, profile?.academic_year, profile?.career_target, skills, studentSkills]
   );
 
   const primary = rankedCareers[0];
@@ -118,14 +135,14 @@ export default function ElectiveRecommendations() {
       .filter((mapping) => {
         if (careerElectiveNames.size === 0) return false;
         return careerElectiveNames.has(
-          (mapping.elective?.name ?? "").trim().toLowerCase(),
+          (mapping.elective?.name ?? "").trim().toLowerCase()
         );
       })
       .map((mapping) => {
         const comparison = primary.comparisons.find(
           (item) =>
             item.skillName.toLowerCase() ===
-            (mapping.skill?.name ?? "").toLowerCase(),
+            (mapping.skill?.name ?? "").toLowerCase()
         );
 
         if (!comparison) return null;
@@ -147,26 +164,14 @@ export default function ElectiveRecommendations() {
         };
       })
       .filter((item) => item !== null && item.comparison.gap > 0)
-      .sort((left, right) => {
-        const leftRequested =
-          left!.mapping.id === requestedMappingId ||
-          left!.mapping.elective_id === requestedElectiveId;
-        const rightRequested =
-          right!.mapping.id === requestedMappingId ||
-          right!.mapping.elective_id === requestedElectiveId;
-        return (
-          Number(rightRequested) - Number(leftRequested) ||
-          right!.priority - left!.priority ||
-          right!.comparison.gap - left!.comparison.gap
-        );
-      });
-  }, [
-    careerElectiveNames,
-    mappings,
-    primary,
-    requestedElectiveId,
-    requestedMappingId,
-  ]);
+      .sort(
+        (left, right) => {
+          const leftRequested = left!.mapping.id === requestedMappingId || left!.mapping.elective_id === requestedElectiveId;
+          const rightRequested = right!.mapping.id === requestedMappingId || right!.mapping.elective_id === requestedElectiveId;
+          return Number(rightRequested) - Number(leftRequested) || right!.priority - left!.priority || right!.comparison.gap - left!.comparison.gap;
+        }
+      );
+  }, [careerElectiveNames, mappings, primary, requestedElectiveId, requestedMappingId]);
 
   return (
     <StudentLayout>
@@ -178,8 +183,8 @@ export default function ElectiveRecommendations() {
           Electives That Address Your Skill Gaps
         </h1>
         <p className="mt-3 max-w-3xl text-slate-600">
-          Recommendations are connected to the primary career result and use the
-          boost percentages configured by an administrator.
+          Recommendations are connected to the primary career result and use
+          the boost percentages configured by an administrator.
         </p>
       </section>
 
@@ -216,15 +221,7 @@ export default function ElectiveRecommendations() {
 
               <div className="space-y-6">
                 {primary.comparisons.map((comparison) => (
-                  <div
-                    key={comparison.skillName}
-                    className={
-                      searchParams.get("mappingId") ||
-                      searchParams.get("electiveId")
-                        ? "rounded-2xl p-2"
-                        : ""
-                    }
-                  >
+                    <div key={comparison.skillName} className={searchParams.get("mappingId") || searchParams.get("electiveId") ? "rounded-2xl p-2" : ""}>
                     <div className="mb-2 flex justify-between gap-3 text-sm">
                       <span className="font-bold">{comparison.skillName}</span>
                       <span className="text-slate-500">
@@ -242,9 +239,7 @@ export default function ElectiveRecommendations() {
                       />
                     </div>
                     <p className="mt-1 text-xs text-slate-500">
-                      Current {Math.round(comparison.current)}% · Required
-                      threshold {comparison.required}% · Skill gap{" "}
-                      {Math.round(comparison.gap)} percentage points
+                      Current {Math.round(comparison.current)}% · Required threshold {comparison.required}% · Skill gap {Math.round(comparison.gap)} percentage points
                     </p>
                   </div>
                 ))}
@@ -254,9 +249,7 @@ export default function ElectiveRecommendations() {
             <div className="rounded-3xl border border-teal-100 bg-white p-8 shadow-sm">
               <div className="mb-6 flex items-center gap-3">
                 <GraduationCap className="text-[#16806d]" />
-                <h2 className="text-2xl font-extrabold">
-                  Recommended Electives
-                </h2>
+                <h2 className="text-2xl font-extrabold">Recommended Electives</h2>
               </div>
 
               {recommendations.length === 0 ? (
@@ -266,8 +259,7 @@ export default function ElectiveRecommendations() {
                   </p>
                   <p className="mt-2 text-sm">
                     Either your required skills already meet their thresholds or
-                    no elective for this career has been linked to a skill
-                    mapping yet.
+                    no elective for this career has been linked to a skill mapping yet.
                   </p>
                 </div>
               ) : (
@@ -279,18 +271,13 @@ export default function ElectiveRecommendations() {
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-start gap-3">
-                          <BookOpen
-                            size={21}
-                            className="mt-1 shrink-0 text-[#16806d]"
-                          />
+                          <BookOpen size={21} className="mt-1 shrink-0 text-[#16806d]" />
                           <div>
                             <h3 className="font-extrabold text-slate-900">
                               {item!.mapping.elective?.name ?? "Elective"}
                             </h3>
                             <p className="mt-1 text-sm text-slate-600">
-                              Improves{" "}
-                              {item!.mapping.skill?.name ??
-                                "the selected skill"}
+                              Improves {item!.mapping.skill?.name ?? "the selected skill"}
                             </p>
                           </div>
                         </div>
@@ -299,6 +286,18 @@ export default function ElectiveRecommendations() {
                         </span>
                       </div>
 
+                      <button
+                        type="button"
+                        onClick={() => void toggleCompleted(item!.mapping.elective_id)}
+                        disabled={updatingElectiveId === item!.mapping.elective_id}
+                        className={`mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition disabled:opacity-60 ${completedElectiveIds.has(item!.mapping.elective_id) ? "bg-[#16806d] text-white" : "bg-white text-[#16806d] hover:bg-teal-50"}`}
+                      >
+                        <CheckCircle2 size={17} />
+                        {completedElectiveIds.has(item!.mapping.elective_id)
+                          ? "Marked as completed"
+                          : "I have taken this elective"}
+                      </button>
+
                       <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
                         <p>
                           <span className="text-slate-500">Boost</span>
@@ -306,23 +305,19 @@ export default function ElectiveRecommendations() {
                           <strong>+{item!.boost} percentage points</strong>
                         </p>
                         <p>
-                          <span className="text-slate-500">
-                            Projected score
-                          </span>
+                          <span className="text-slate-500">Projected score</span>
                           <br />
                           <strong>{Math.round(item!.projected)}%</strong>
                         </p>
                         <p>
                           <span className="text-slate-500">Gap closed</span>
                           <br />
-                          <strong>
-                            {Math.round(item!.gapClosed)} percentage points
-                          </strong>
+                          <strong>{Math.round(item!.gapClosed)} percentage points</strong>
                         </p>
                       </div>
 
                       <p className="mt-4 text-xs text-slate-500">
-                        Mapping formula: {item!.mapping.formula}
+                        {/* Mapping formula retained in the data model but intentionally hidden from students. */}
                       </p>
                     </div>
                   ))}
@@ -331,12 +326,11 @@ export default function ElectiveRecommendations() {
             </div>
           </section>
 
+          {/*
           <section className="rounded-3xl border border-teal-100 bg-white p-8 shadow-sm">
             <div className="mb-5 flex items-center gap-3">
               <TrendingUp className="text-[#16806d]" />
-              <h2 className="text-2xl font-extrabold">
-                Elective Mapping Formula
-              </h2>
+              <h2 className="text-2xl font-extrabold">Elective Mapping Formula</h2>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -348,15 +342,11 @@ export default function ElectiveRecommendations() {
                 <p className="mt-3 rounded-xl bg-white p-3 text-sm font-bold text-slate-800">
                   P = min(100, C + B)
                 </p>
-                <p className="mt-2 text-xs text-slate-600">
-                  Example: 60 current + 10 boost = 70 projected.
-                </p>
+                <p className="mt-2 text-xs text-slate-600">Example: 60 current + 10 boost = 70 projected.</p>
               </div>
 
               <div className="rounded-2xl bg-[#f4fbfa] p-5">
-                <p className="font-extrabold text-[#16806d]">
-                  Recommendation priority
-                </p>
+                <p className="font-extrabold text-[#16806d]">Recommendation priority</p>
                 <p className="mt-2 text-sm text-slate-700">
                   The percentage of the current skill gap that the elective can
                   close.
@@ -364,19 +354,18 @@ export default function ElectiveRecommendations() {
                 <p className="mt-3 rounded-xl bg-white p-3 text-sm font-bold text-slate-800">
                   Priority = min(G, B) ÷ G × 100
                 </p>
-                <p className="mt-2 text-xs text-slate-600">
-                  Example: min(20 gap, 10 boost) ÷ 20 × 100 = 50% priority.
-                </p>
+                <p className="mt-2 text-xs text-slate-600">Example: min(20 gap, 10 boost) ÷ 20 × 100 = 50% priority.</p>
               </div>
             </div>
 
             <p className="mt-5 flex gap-3 text-sm text-slate-600">
-              <CheckCircle2 className="shrink-0 text-[#16806d]" />C = current
-              score, B = administrator-defined boost, G = required score −
-              current score. The mapping values are stored in Supabase, so the
-              same calculation can be used by the mobile application.
+              <CheckCircle2 className="shrink-0 text-[#16806d]" />
+              C = current score, B = administrator-defined boost, G = required
+              score − current score. The mapping values are stored in Supabase,
+              so the same calculation can be used by the mobile application.
             </p>
           </section>
+          */}
         </>
       )}
     </StudentLayout>

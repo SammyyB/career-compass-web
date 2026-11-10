@@ -96,6 +96,12 @@ export type StudentSkill = {
   skill?: Pick<Skill, "name" | "default_weight"> | null;
 };
 
+export type StudentElective = {
+  student_id: string;
+  elective_id: string;
+  completed_at: string;
+};
+
 export type UserNotification = {
   id: string;
   user_id: string;

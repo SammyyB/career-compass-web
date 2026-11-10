@@ -104,6 +104,8 @@ export function rankCareers(
     .sort((left, right) => {
       const leftTarget = left.career.name === careerTarget ? 1 : 0;
       const rightTarget = right.career.name === careerTarget ? 1 : 0;
-      return right.score - left.score || rightTarget - leftTarget || left.career.name.localeCompare(right.career.name);
+      // A saved career target is the student's preferred primary path. Keep it
+      // first, then use skill readiness to rank the remaining paths.
+      return rightTarget - leftTarget || right.score - left.score || left.career.name.localeCompare(right.career.name);
     });
 }

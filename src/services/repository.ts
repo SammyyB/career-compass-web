@@ -12,6 +12,7 @@ import type {
   Skill,
   Specialization,
   StudentSkill,
+  StudentElective,
   UserNotification,
   PaginatedResult,
 } from "../lib/types";
@@ -366,9 +367,7 @@ export async function listRecentAuditLogs(limit = 20) {
     .order("created_at", { ascending: false })
     .limit(Math.min(50, Math.max(1, limit)));
 
-  if (error) {
-    throw error;
-  }
+  if (error) throw error;
 
   type AuditActor = Pick<
     Profile,
@@ -381,12 +380,10 @@ export async function listRecentAuditLogs(limit = 20) {
 
   const rows = (data ?? []) as SupabaseAuditRow[];
 
-  return rows.map(
-    (row): AuditLog => ({
-      ...row,
-      actor: row.actor?.[0] ?? null,
-    })
-  );
+  return rows.map((row): AuditLog => ({
+    ...row,
+    actor: row.actor?.[0] ?? null,
+  }));
 }
 
 export async function listCareers() {
@@ -453,6 +450,48 @@ export async function listStudentSkills(studentId: string) {
 
   if (error) throw error;
   return (data ?? []) as StudentSkill[];
+}
+
+export async function listCompletedStudentElectives(studentId: string) {
+  requireSupabaseConfiguration();
+  const { data, error } = await supabase
+    .from("student_electives")
+    .select("student_id, elective_id, completed_at")
+    .eq("student_id", studentId);
+
+  if (error) throw error;
+  return (data ?? []) as StudentElective[];
+}
+
+export async function setStudentElectiveCompleted(
+  studentId: string,
+  electiveId: string,
+  completed: boolean
+) {
+  requireSupabaseConfiguration();
+
+  if (completed) {
+    const { data, error } = await supabase
+      .from("student_electives")
+      .upsert(
+        { student_id: studentId, elective_id: electiveId },
+        { onConflict: "student_id,elective_id" }
+      )
+      .select("student_id, elective_id, completed_at")
+      .single();
+
+    if (error) throw error;
+    return data as StudentElective;
+  }
+
+  const { error } = await supabase
+    .from("student_electives")
+    .delete()
+    .eq("student_id", studentId)
+    .eq("elective_id", electiveId);
+
+  if (error) throw error;
+  return null;
 }
 
 export async function listStudentResumeFiles(studentId: string) {
