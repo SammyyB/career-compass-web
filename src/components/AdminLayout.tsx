@@ -102,6 +102,17 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const loadNotifications = async () => {
     try {
       setUpdates((await listRecentAuditLogs(8)) as AdminUpdate[]);
@@ -268,35 +279,37 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       <aside
         id="admin-navigation"
-        className={`${menuOpen ? "translate-x-0" : "-translate-x-full"} fixed left-0 top-0 z-50 min-h-screen w-[300px] border-r border-teal-100 bg-gradient-to-b from-[#dff6f2] to-[#eefaf8] px-5 py-8 transition-transform lg:translate-x-0`}
+        className={`${menuOpen ? "translate-x-0" : "-translate-x-full"} fixed left-0 top-0 z-50 h-screen h-[100dvh] min-h-screen w-[min(300px,calc(100vw-1rem))] max-w-full overflow-x-hidden overflow-y-auto border-r border-teal-100 bg-gradient-to-b from-[#dff6f2] to-[#eefaf8] px-4 py-8 pb-24 sm:px-5 transition-transform lg:translate-x-0`}
         aria-label="Administrator navigation"
       >
-        <div className="mb-10 flex items-center justify-between">
+        <div className="relative mb-10 min-w-0 pr-10">
           <NavLink
             to="/admin"
             onClick={() => setMenuOpen(false)}
-            className={`flex items-center gap-4 ${focusClass}`}
+            className={`flex min-w-0 items-center gap-2 ${focusClass}`}
           >
             <img
               src={logo}
               alt="Career Compass Logo"
-              className="h-16 w-16 shrink-0 object-contain"
+              className="h-12 w-12 shrink-0 object-contain"
             />
-            <div className="leading-tight">
-              <h1 className="whitespace-nowrap text-2xl font-extrabold text-[#16806d]">
+            <div className="min-w-0 leading-tight">
+              <h1 className="whitespace-nowrap text-xl font-extrabold text-[#16806d]">
                 Career Compass
               </h1>
               <p className="mt-1 text-sm text-slate-500">Admin Portal</p>
             </div>
           </NavLink>
-          <button
-            type="button"
-            onClick={() => setMenuOpen(false)}
-            className={`text-slate-600 lg:hidden ${focusClass}`}
-            aria-label="Close menu"
-          >
-            <X size={22} />
-          </button>
+          {menuOpen && (
+            <button
+              type="button"
+              onClick={() => setMenuOpen(false)}
+              className={`absolute right-0 top-0 z-10 rounded-lg p-2 text-slate-600 lg:hidden ${focusClass}`}
+              aria-label="Close menu"
+            >
+              <X size={22} />
+            </button>
+          )}
         </div>
 
         <nav className="space-y-3">
@@ -328,8 +341,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="w-full flex-1 lg:ml-[300px]">
-        <header className="sticky top-0 z-30 flex min-h-20 items-center justify-between gap-4 border-b border-slate-100 bg-white/90 px-5 backdrop-blur lg:px-10">
-          <div className="flex min-w-0 items-center gap-3">
+        <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-2 border-b border-slate-100 bg-white/90 px-3 backdrop-blur sm:min-h-20 sm:gap-4 sm:px-5 lg:px-10">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
             <button
               type="button"
               onClick={() => setMenuOpen((open) => !open)}
@@ -340,7 +353,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             >
               <Menu size={28} />
             </button>
-            <div className="relative w-[190px] sm:w-[280px] lg:w-[360px]">
+            <div className="relative min-w-0 w-[clamp(7rem,42vw,16rem)] lg:w-[360px]">
               <label htmlFor="admin-global-search" className="sr-only">
                 Search admin records
               </label>
@@ -390,7 +403,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-4 lg:gap-6">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-3 lg:gap-6">
             <div className="relative">
               <button
                 type="button"
@@ -468,8 +481,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               )}
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 font-bold text-white">
-                <ShieldCheck size={22} aria-hidden="true" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 font-bold text-white sm:h-12 sm:w-12">
+                <ShieldCheck size={20} aria-hidden="true" />
               </div>
               <div className="hidden sm:block">
                 <p className="font-bold">{name}</p>
@@ -478,7 +491,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             </div>
           </div>
         </header>
-        <main className="p-5 lg:p-10">
+        <main className="min-w-0 p-4 sm:p-5 lg:p-10">
           {!online && (
             <div
               role="status"

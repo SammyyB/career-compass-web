@@ -261,10 +261,10 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
     }
   };
 
-  const sidebarClassName = desktopSidebarCollapsed
-    ? "-translate-x-full"
-    : mobileMenuOpen
-      ? "translate-x-0"
+  const sidebarClassName = mobileMenuOpen
+    ? "translate-x-0"
+    : desktopSidebarCollapsed
+      ? "-translate-x-full"
       : "-translate-x-full lg:translate-x-0";
 
   return (
@@ -280,36 +280,38 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
 
       <aside
         id="student-navigation"
-        className={`fixed left-0 top-0 z-50 min-h-screen w-[300px] border-r border-teal-100 bg-gradient-to-b from-[#dff6f2] to-[#eefaf8] px-5 py-8 transition-transform duration-200 ${sidebarClassName}`}
+        className={`fixed left-0 top-0 z-50 h-screen h-[100dvh] min-h-screen w-[min(300px,calc(100vw-1rem))] max-w-full overflow-x-hidden overflow-y-auto border-r border-teal-100 bg-gradient-to-b from-[#dff6f2] to-[#eefaf8] px-4 py-8 pb-24 sm:px-5 transition-transform duration-200 ${sidebarClassName}`}
       >
-        <div className="mb-10 flex items-center justify-between gap-4">
+        <div className="relative mb-10 flex min-w-0 items-center gap-2 pr-10">
           <NavLink
             to="/dashboard"
             onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center gap-4"
+            className="flex min-w-0 items-center gap-2"
           >
             <img
               src={logo}
               alt="Career Compass Logo"
-              className="h-16 w-16 shrink-0 object-contain"
+              className="h-12 w-12 shrink-0 object-contain"
             />
 
             <div className="leading-tight">
-              <h1 className="whitespace-nowrap text-2xl font-extrabold text-[#16806d]">
+              <h1 className="whitespace-nowrap text-xl font-extrabold text-[#16806d]">
                 Career Compass
               </h1>
               <p className="mt-1 text-sm text-slate-500">Navigate your future</p>
             </div>
           </NavLink>
 
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(false)}
-            className="text-slate-500 lg:hidden"
-            aria-label="Close sidebar"
-          >
-            <X size={22} />
-          </button>
+          {mobileMenuOpen && (
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(false)}
+              className="absolute right-0 top-0 z-10 rounded-lg p-2 text-slate-600 lg:hidden"
+              aria-label="Close sidebar"
+            >
+              <X size={22} />
+            </button>
+          )}
         </div>
 
         <nav className="space-y-3">
@@ -352,8 +354,8 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
           desktopSidebarCollapsed ? "lg:ml-0" : "lg:ml-[300px]"
         }`}
       >
-        <header className="sticky top-0 z-30 flex min-h-20 items-center justify-between gap-4 border-b border-slate-100 bg-white/90 px-4 backdrop-blur sm:px-6 lg:px-10">
-          <div className="flex min-w-0 items-center gap-3 lg:gap-5">
+        <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-2 border-b border-slate-100 bg-white/90 px-3 backdrop-blur sm:min-h-20 sm:gap-4 sm:px-6 lg:px-10">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3 lg:gap-5">
             <button
               type="button"
               onClick={toggleSidebar}
@@ -362,10 +364,10 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
               aria-expanded={!desktopSidebarCollapsed && (mobileMenuOpen || window.innerWidth >= 1024)}
               aria-controls="student-navigation"
             >
-              <Menu size={28} />
+              <Menu className="h-6 w-6 sm:h-7 sm:w-7" />
             </button>
 
-            <div className="relative w-40 sm:w-64 lg:w-[360px]">
+            <div className="relative min-w-0 w-[clamp(7rem,42vw,16rem)] lg:w-[360px]">
               <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-[#f4fbfa] px-3 py-2.5 sm:px-5 sm:py-3">
                 <Search size={18} className="shrink-0 text-slate-400" />
                 <input
@@ -404,7 +406,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-3 sm:gap-6">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-3 lg:gap-6">
             <div className="relative">
               <button
                 type="button"
@@ -418,7 +420,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
                 aria-expanded={notificationOpen}
                 aria-controls="student-notifications"
               >
-                <Bell size={24} />
+                <Bell className="h-5 w-5 sm:h-6 sm:w-6" />
                 {unreadCount > 0 && (
                   <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs text-white">
                     {unreadCount > 9 ? "9+" : unreadCount}
@@ -482,7 +484,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1f8f78] font-bold text-white">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1f8f78] text-sm font-bold text-white sm:h-12 sm:w-12 sm:text-base">
                 {initials}
               </div>
 
@@ -494,7 +496,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="p-5 lg:p-10">
+        <main className="min-w-0 p-4 sm:p-5 lg:p-10">
           {!online && (
             <div
               role="status"

@@ -3,9 +3,8 @@ import { useSearchParams } from "react-router-dom";
 import {
   Award,
   BarChart3,
-  CheckCircle2,
+  BriefcaseBusiness,
   Layers,
-  Target,
 } from "lucide-react";
 
 import StudentLayout from "../../components/StudentLayout";
@@ -89,6 +88,9 @@ export default function CareerRecommendations() {
   const requestedCareerId = searchParams.get("careerId") ??
     specializations.find((item) => item.id === searchParams.get("specializationId"))?.career_id;
   const primary = rankedResults.find((item) => item.career.id === requestedCareerId) ?? rankedResults[0];
+  const results = primary
+    ? [primary, ...rankedResults.filter((item) => item.career.id !== primary.career.id)]
+    : [];
   const primarySpecializations = specializations.filter(
     (item) => item.career_id === primary?.career.id
   );
@@ -182,7 +184,7 @@ export default function CareerRecommendations() {
               </div>
             </div>
 
-            {/*
+            {/* Secondary career paths remain visible for comparison. */}
             <div className="rounded-3xl border border-teal-100 bg-white p-8 shadow-sm">
               <div className="mb-6 flex items-center gap-3">
                 <BriefcaseBusiness className="text-[#16806d]" />
@@ -213,7 +215,6 @@ export default function CareerRecommendations() {
                 )}
               </div>
             </div>
-            */}
           </section>
 
           <section className="mb-6 rounded-3xl border border-teal-100 bg-white p-8 shadow-sm">
@@ -287,6 +288,7 @@ export default function CareerRecommendations() {
               )}
             </div>
 
+            {/*
             <div className="rounded-3xl border border-teal-100 bg-white p-8 shadow-sm">
               <div className="mb-5 flex items-center gap-3">
                 <Target className="text-[#16806d]" />
@@ -314,6 +316,7 @@ export default function CareerRecommendations() {
                 this graph and the primary/secondary ranking.
               </p>
             </div>
+            */}
 
             <div className="rounded-3xl border border-teal-100 bg-white p-8 shadow-sm">
               <div className="mb-5 flex items-center gap-3">

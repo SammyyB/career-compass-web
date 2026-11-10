@@ -345,6 +345,7 @@ export default function SkillGapAnalysis() {
         )}
       </section>
 
+      {/*
       <section className="rounded-3xl border border-teal-100 bg-white p-7 shadow-sm">
         <h2 className="text-xl font-extrabold">Calculation used</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
@@ -368,6 +369,7 @@ export default function SkillGapAnalysis() {
           Example: 60 current ÷ 80 required × 100 = 75% readiness.
         </p>
       </section>
+      */}
     </StudentLayout>
   );
 }
