@@ -7,11 +7,11 @@ const corsHeaders = {
 };
 
 const GEMINI_MODELS = [
-  "gemini-3.8-flash",
-  "gemini-3.7-flash",
   "gemini-3.5-flash-lite",
+  "gemini-3.8-flash",
 ] as const;
-const GEMINI_RETRY_DELAYS_MS = [700, 1500];
+const GEMINI_RETRY_DELAYS_MS = [500];
+const GEMINI_REQUEST_TIMEOUT_MS = 25_000;
 const MAX_ANSWER_LENGTH = 8_000;
 const MAX_CONTEXT_LENGTH = 8_000;
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
@@ -104,20 +104,39 @@ async function callGemini(
 
   for (const model of GEMINI_MODELS) {
     for (let attempt = 0; attempt <= GEMINI_RETRY_DELAYS_MS.length; attempt += 1) {
-      const result = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents,
-            generationConfig: {
-              responseMimeType: "application/json",
-              responseSchema,
-            },
-          }),
-        }
+      const controller = new AbortController();
+      const timeout = setTimeout(
+        () => controller.abort(),
+        GEMINI_REQUEST_TIMEOUT_MS
       );
+
+      let result: Response;
+      try {
+        result = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents,
+              generationConfig: {
+                responseMimeType: "application/json",
+                responseSchema,
+              },
+            }),
+            signal: controller.signal,
+          }
+        );
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          lastError = "Gemini request timed out.";
+        } else {
+          throw error;
+        }
+        continue;
+      } finally {
+        clearTimeout(timeout);
+      }
 
       if (result.ok) {
         const payload = (await result.json()) as Record<string, unknown>;
