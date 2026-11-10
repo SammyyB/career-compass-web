@@ -41,15 +41,15 @@ export default function AdminLogin() {
   return (
     <div className="min-h-screen bg-[#f4fbfa] text-slate-900">
       <header className="bg-white/90 backdrop-blur border-b border-teal-100 shadow-sm">
-        <div className="w-full px-8 lg:px-12 py-5 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-4">
+        <div className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-8 sm:py-5 lg:px-12">
+          <Link to="/" className="flex min-w-0 items-center gap-3 sm:gap-4">
             <img
               src={logo}
               alt="Career Compass Logo"
-              className="w-16 h-16 object-contain"
+              className="h-12 w-12 shrink-0 object-contain sm:h-16 sm:w-16"
             />
-            <div>
-              <h1 className="text-2xl font-extrabold text-[#16806d]">
+            <div className="min-w-0">
+              <h1 className="text-lg font-extrabold text-[#16806d] sm:text-2xl">
                 Career Compass
               </h1>
               <p className="text-xs text-slate-500">Administrator portal</p>
@@ -57,19 +57,19 @@ export default function AdminLogin() {
           </Link>
           <Link
             to="/"
-            className="inline-flex items-center gap-2 bg-[#eaf8f5] text-[#16806d] px-6 py-3 rounded-full font-bold hover:bg-teal-100 transition"
+            className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#eaf8f5] px-3 py-2 text-sm font-bold text-[#16806d] transition hover:bg-teal-100 sm:px-6 sm:py-3 sm:text-base"
           >
-            <ArrowLeft size={18} /> Back to Landing
+            <ArrowLeft size={16} /> Back to Landing
           </Link>
         </div>
       </header>
 
-      <main className="min-h-[85vh] flex items-center justify-center px-4 py-10">
+      <main className="flex min-h-[85vh] items-center justify-center px-4 py-6 sm:py-10">
         <form
           onSubmit={handleSubmit}
           className="w-full max-w-md bg-white rounded-[2rem] shadow-xl border border-teal-100 overflow-hidden"
         >
-          <div className="bg-slate-900 text-white px-8 py-8 text-center">
+          <div className="bg-slate-900 px-5 py-6 text-center text-white sm:px-8 sm:py-8">
             <div className="w-16 h-16 bg-white/10 rounded-2xl mx-auto flex items-center justify-center">
               <ShieldCheck size={30} />
             </div>
@@ -78,7 +78,7 @@ export default function AdminLogin() {
               Authorized administrators only
             </p>
           </div>
-          <div className="p-8 space-y-5">
+          <div className="space-y-5 p-5 sm:p-8">
             {error && (
               <p className="bg-red-50 text-red-700 p-3 rounded-xl text-sm font-semibold">
                 {error}

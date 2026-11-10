@@ -20,6 +20,30 @@
 }
 
 @media (max-width: 640px) {
+  /* Keep every dashboard page within the phone viewport. */
+  main {
+    overflow-x: hidden;
+  }
+
+  main .p-8 {
+    padding: 1.25rem;
+  }
+
+  main .p-9 {
+    padding: 1.25rem;
+  }
+
+  main .px-8 {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+
+  main .text-5xl {
+    font-size: 2.25rem;
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+  }
+
   main > section.rounded-3xl:first-child {
     padding: 1.25rem;
   }
@@ -36,6 +60,13 @@
     overflow-wrap: anywhere;
   }
 
+  main h1.text-3xl,
+  main h2.text-3xl {
+    font-size: 1.65rem;
+    line-height: 2rem;
+    overflow-wrap: anywhere;
+  }
+
   main > section,
   main > div {
     min-width: 0;
@@ -44,6 +75,20 @@
   main input,
   main select,
   main textarea {
+    max-width: 100%;
+  }
+
+  main .overflow-x-auto {
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  main .overflow-x-auto table {
+    min-width: 640px;
+  }
+
+  main button,
+  main a {
     max-width: 100%;
   }
 }
