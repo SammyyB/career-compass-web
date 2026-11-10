@@ -452,7 +452,7 @@ export default function Profile() {
           </button>
         </div>
 
-        <div className="grid min-w-0 gap-6 xl:col-span-2 md:grid-cols-2">
+        <div className="grid min-w-0 gap-6 md:grid-cols-2 xl:contents">
           <div className="min-w-0 rounded-3xl border border-teal-100 bg-white p-5 shadow-sm sm:p-7">
             <div className="mb-5 flex items-center gap-3">
               <User className="text-[#16806d]" />
@@ -560,7 +560,7 @@ export default function Profile() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-teal-100 bg-white p-7 shadow-sm md:col-span-2">
+          <div className="rounded-3xl border border-teal-100 bg-white p-7 shadow-sm md:col-span-2 xl:col-span-3">
             <div className="mb-5 flex items-center gap-3">
               <Code2 className="text-[#16806d]" />
               <h2 className="text-xl font-extrabold">Interests & Technologies</h2>
@@ -584,7 +584,7 @@ export default function Profile() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-teal-100 bg-white p-7 shadow-sm md:col-span-2">
+          <div className="rounded-3xl border border-teal-100 bg-white p-7 shadow-sm md:col-span-2 xl:col-span-3">
             <div className="mb-5 flex items-center gap-3">
               <GraduationCap className="text-[#16806d]" />
               <h2 className="text-xl font-extrabold">Academic Records</h2>

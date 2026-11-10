@@ -135,8 +135,8 @@ export default function CareerRecommendations() {
         </div>
       ) : (
         <>
-          <section className="mb-6 grid gap-6 xl:grid-cols-3">
-            <div className="xl:col-span-2 rounded-3xl bg-gradient-to-br from-[#1f8f78] to-[#36a889] p-9 text-white shadow-lg">
+          <section className="mb-6 space-y-6">
+            <div className="rounded-3xl bg-gradient-to-br from-[#1f8f78] to-[#36a889] p-9 text-white shadow-lg">
               <div className="flex items-center gap-3">
                 <Award size={28} />
                 <span className="font-bold uppercase tracking-wide">
@@ -191,7 +191,7 @@ export default function CareerRecommendations() {
                 <h2 className="text-2xl font-extrabold">Secondary Paths</h2>
               </div>
 
-              <div className="space-y-6">
+              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {results.slice(1).length === 0 ? (
                   <p className="text-slate-500">No secondary paths available.</p>
                 ) : (
