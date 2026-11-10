@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 @layer base {
+
   html,
   body,
   #root {
@@ -20,6 +21,7 @@
 }
 
 @media (max-width: 640px) {
+
   /* Keep every dashboard page within the phone viewport. */
   main {
     overflow-x: hidden;
@@ -44,7 +46,7 @@
     overflow-wrap: anywhere;
   }
 
-  main > section.rounded-3xl:first-child {
+  main>section.rounded-3xl:first-child {
     padding: 1.25rem;
   }
 
@@ -67,8 +69,8 @@
     overflow-wrap: anywhere;
   }
 
-  main > section,
-  main > div {
+  main>section,
+  main>div {
     min-width: 0;
   }
 
@@ -91,4 +93,39 @@
   main a {
     max-width: 100%;
   }
+}
+
+/* Admin portal theme: navy/slate, visually separate from the student teal theme. */
+.admin-theme [class*="border-teal-100"],
+.admin-theme [class*="border-teal-200"] {
+  border-color: #d6deeb !important;
+}
+
+.admin-theme [class*="text-[#16806d]"],
+.admin-theme [class*="text-teal-700"] {
+  color: #1e293b !important;
+}
+
+.admin-theme [class*="bg-[#eaf8f5]"],
+.admin-theme [class*="bg-[#f8fcfb]"],
+.admin-theme [class*="bg-[#f4fbfa]"] {
+  background-color: #f1f5f9 !important;
+}
+
+.admin-theme [class*="from-[#e1f8f4]"],
+.admin-theme [class*="to-[#f0fbf9]"] {
+  --tw-gradient-from: #e2e8f0 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: #f8fafc var(--tw-gradient-to-position) !important;
+}
+
+.admin-theme [class*="bg-[#55b497]"],
+.admin-theme [class*="from-[#1f8f78]"],
+.admin-theme [class*="to-[#36a889"] {
+  background-image: none !important;
+  background-color: #334155 !important;
+}
+
+.admin-theme [class*="hover:bg-[#eaf8f5]"]:hover,
+.admin-theme [class*="hover:bg-white"]:hover {
+  background-color: #e2e8f0 !important;
 }

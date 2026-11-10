@@ -267,7 +267,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#f4fbfa] text-slate-800">
+    <div className="admin-theme flex min-h-screen bg-[#f1f5f9] text-slate-800">
       {menuOpen && (
         <button
           type="button"
@@ -279,7 +279,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       <aside
         id="admin-navigation"
-        className={`${menuOpen ? "translate-x-0" : "-translate-x-full"} fixed left-0 top-0 z-50 h-screen h-[100dvh] min-h-screen w-[min(300px,calc(100vw-1rem))] max-w-full overflow-x-hidden overflow-y-auto border-r border-teal-100 bg-gradient-to-b from-[#dff6f2] to-[#eefaf8] px-4 py-8 pb-24 sm:px-5 transition-transform lg:translate-x-0`}
+        className={`${menuOpen ? "translate-x-0" : "-translate-x-full"} fixed left-0 top-0 z-50 h-screen h-[100dvh] min-h-screen w-[min(300px,calc(100vw-1rem))] max-w-full overflow-x-hidden overflow-y-auto border-r border-slate-700 bg-gradient-to-b from-[#0f1b33] to-[#17243d] px-4 py-8 pb-24 text-white sm:px-5 transition-transform lg:translate-x-0`}
         aria-label="Administrator navigation"
       >
         <div className="relative mb-10 min-w-0 pr-10">
@@ -294,10 +294,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               className="h-12 w-12 shrink-0 object-contain"
             />
             <div className="min-w-0 leading-tight">
-              <h1 className="whitespace-nowrap text-xl font-extrabold text-[#16806d]">
+              <h1 className="whitespace-nowrap text-xl font-extrabold text-white">
                 Career Compass
               </h1>
-              <p className="mt-1 text-sm text-slate-500">Admin Portal</p>
+              <p className="mt-1 text-sm text-slate-300">Admin Portal</p>
             </div>
           </NavLink>
           {menuOpen && (
@@ -320,7 +320,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               end={path === "/admin"}
               onClick={() => setMenuOpen(false)}
               className={({ isActive }) =>
-                `flex items-center gap-4 rounded-xl px-5 py-4 font-semibold transition ${focusClass} ${isActive ? "bg-gradient-to-r from-[#1f8f78] to-[#36a889] text-white shadow-md" : "text-slate-700 hover:bg-white"}`
+                `flex items-center gap-4 rounded-xl px-5 py-4 font-semibold transition ${focusClass} ${isActive ? "bg-[#334155] text-white shadow-md" : "text-slate-200 hover:bg-white/10"}`
               }
             >
               <Icon size={20} aria-hidden="true" />
@@ -333,7 +333,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           type="button"
           onClick={() => void handleLogout()}
           disabled={loggingOut}
-          className={`absolute bottom-8 left-5 right-5 flex items-center gap-3 rounded-xl px-5 py-4 font-semibold text-slate-700 hover:bg-red-50 hover:text-red-600 disabled:opacity-60 ${focusClass}`}
+          className={`absolute bottom-8 left-5 right-5 flex items-center gap-3 rounded-xl px-5 py-4 font-semibold text-slate-200 hover:bg-white/10 hover:text-white disabled:opacity-60 ${focusClass}`}
         >
           <LogOut size={20} aria-hidden="true" />
           <span>{loggingOut ? "Logging out..." : "Logout"}</span>
@@ -341,12 +341,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="w-full flex-1 lg:ml-[300px]">
-        <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-2 border-b border-slate-100 bg-white/90 px-3 backdrop-blur sm:min-h-20 sm:gap-4 sm:px-5 lg:px-10">
+        <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-2 border-b border-slate-700 bg-[#0f1b33] px-3 text-white shadow-sm sm:min-h-20 sm:gap-4 sm:px-5 lg:px-10">
           <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
             <button
               type="button"
               onClick={() => setMenuOpen((open) => !open)}
-              className={`shrink-0 text-[#16806d] lg:hidden ${focusClass}`}
+              className={`shrink-0 text-white lg:hidden ${focusClass}`}
               aria-label="Toggle admin menu"
               aria-expanded={menuOpen}
               aria-controls="admin-navigation"
@@ -357,10 +357,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <label htmlFor="admin-global-search" className="sr-only">
                 Search admin records
               </label>
-              <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-[#f4fbfa] px-4 py-3">
+              <div className="flex items-center gap-3 rounded-xl border border-slate-600 bg-[#1e2a42] px-4 py-3">
                 <Search
                   size={18}
-                  className="shrink-0 text-slate-400"
+                  className="shrink-0 text-slate-300"
                   aria-hidden="true"
                 />
                 <input
@@ -368,7 +368,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="Search admin records..."
-                  className={`w-full bg-transparent text-sm outline-none ${focusClass}`}
+                  className={`w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-400 ${focusClass}`}
                 />
               </div>
               {searchQuery.trim() && (
@@ -408,7 +408,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <button
                 type="button"
                 onClick={handleNotificationToggle}
-                className={`relative rounded-xl p-2 text-slate-700 hover:bg-[#eaf8f5] hover:text-[#16806d] ${focusClass}`}
+                className={`relative rounded-xl p-2 text-white hover:bg-white/10 ${focusClass}`}
                 aria-label="Open admin notifications"
                 aria-expanded={notificationOpen}
                 aria-controls="admin-notifications"
@@ -481,12 +481,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               )}
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 font-bold text-white sm:h-12 sm:w-12">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#334155] font-bold text-white sm:h-12 sm:w-12">
                 <ShieldCheck size={20} aria-hidden="true" />
               </div>
               <div className="hidden sm:block">
-                <p className="font-bold">{name}</p>
-                <p className="text-sm text-slate-500">Administrator account</p>
+                <p className="font-bold text-white">{name}</p>
+                <p className="text-sm text-slate-300">Administrator account</p>
               </div>
             </div>
           </div>
