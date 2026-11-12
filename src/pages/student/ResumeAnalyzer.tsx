@@ -1,10 +1,25 @@
-import { useEffect, useRef, useState } from "react";
-import { BarChart3, Download, FileText, Info, Sparkles, Upload, WifiOff } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  BarChart3,
+  Download,
+  FileText,
+  Info,
+  Sparkles,
+  Upload,
+  WifiOff,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 
 import StudentLayout from "../../components/StudentLayout";
 import { useAuth } from "../../context/AuthContext";
 import { invokeCareerAI } from "../../lib/careerAi";
+import type { Career, Skill, StudentSkill } from "../../lib/types";
+import {
+  listCareers,
+  listSkills,
+  listStudentSkills,
+} from "../../services/repository";
+import { rankCareers } from "../../services/recommendations";
 
 type ResumeAnalysisResponse = {
   analysis?: string;
@@ -50,7 +65,10 @@ async function fileToBase64(file: File) {
 }
 
 export default function ResumeAnalyzer() {
-  const { profile } = useAuth();
+  const { profile, session } = useAuth();
+  const [careers, setCareers] = useState<Career[]>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [studentSkills, setStudentSkills] = useState<StudentSkill[]>([]);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState("");
@@ -62,14 +80,58 @@ export default function ResumeAnalyzer() {
   const [busy, setBusy] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
 
+  const rankedCareers = useMemo(
+    () =>
+      rankCareers(
+        careers,
+        skills,
+        studentSkills,
+        profile?.academic_year,
+        profile?.interests,
+      ),
+    [
+      careers,
+      profile?.academic_year,
+      profile?.interests,
+      skills,
+      studentSkills,
+    ],
+  );
+  const systemCareer = rankedCareers[0]?.career.name ?? "";
+
   const profileComplete = Boolean(
     profile?.first_name?.trim() &&
-      profile?.last_name?.trim() &&
-      profile?.program?.trim() &&
-      profile?.career_target?.trim() &&
-      profile?.interests?.length &&
-      profile?.technologies?.length
+    profile?.last_name?.trim() &&
+    profile?.program?.trim() &&
+    profile?.career_target?.trim() &&
+    profile?.interests?.length &&
+    profile?.technologies?.length &&
+    systemCareer,
   );
+
+  useEffect(() => {
+    if (!session?.user.id) return;
+
+    const loadRecommendationData = async () => {
+      try {
+        const [careerData, skillData, studentSkillData] = await Promise.all([
+          listCareers(),
+          listSkills(),
+          listStudentSkills(session.user.id),
+        ]);
+        setCareers(careerData);
+        setSkills(skillData);
+        setStudentSkills(studentSkillData);
+      } catch (loadError) {
+        console.error(
+          "Unable to load resume career recommendation:",
+          loadError,
+        );
+      }
+    };
+
+    void loadRecommendationData();
+  }, [session?.user.id]);
 
   useEffect(() => {
     const handleOnline = () => setOnline(true);
@@ -126,10 +188,11 @@ export default function ResumeAnalyzer() {
     try {
       const pdfBase64 = await fileToBase64(file);
       const result = await invokeCareerAI<ResumeAnalysisResponse>({
-            action: "resume_analysis",
-            file_name: file.name,
-            mime_type: "application/pdf",
-            pdf_base64: pdfBase64,
+        action: "resume_analysis",
+        file_name: file.name,
+        mime_type: "application/pdf",
+        pdf_base64: pdfBase64,
+        system_career: systemCareer,
       });
       const nextAnalysis = result.analysis?.trim();
       const nextScore =
@@ -149,7 +212,7 @@ export default function ResumeAnalyzer() {
       setError(
         analysisError instanceof Error
           ? analysisError.message
-          : "Unable to analyze the resume."
+          : "Unable to analyze the resume.",
       );
       setStatus("");
     } finally {
@@ -160,7 +223,14 @@ export default function ResumeAnalyzer() {
   const generateResumeDraft = async () => {
     if (!profileComplete) {
       setError(
-        "Complete your first name, last name, program, career target, interests, and technologies in your Profile before generating a resume."
+        "Complete your first name, last name, program, career target, interests, and technologies in your Profile before generating a resume.",
+      );
+      return;
+    }
+
+    if (!systemCareer) {
+      setError(
+        "Your system career recommendation is not ready yet. Update your skills and try again.",
       );
       return;
     }
@@ -177,6 +247,7 @@ export default function ResumeAnalyzer() {
     try {
       const result = await invokeCareerAI<ResumeBuilderResponse>({
         action: "resume_builder",
+        system_career: systemCareer,
       });
 
       if (!result.resume_markdown?.trim()) {
@@ -185,12 +256,14 @@ export default function ResumeAnalyzer() {
 
       setResumeDraft(result.resume_markdown.trim());
       setSuggestions(result.suggestions ?? []);
-      setStatus("Resume draft generated. Review every section before using it.");
+      setStatus(
+        "Resume draft generated. Review every section before using it.",
+      );
     } catch (builderError) {
       setError(
         builderError instanceof Error
           ? builderError.message
-          : "Unable to generate the resume draft."
+          : "Unable to generate the resume draft.",
       );
       setStatus("");
     } finally {
@@ -201,7 +274,9 @@ export default function ResumeAnalyzer() {
   const downloadDraft = () => {
     if (!resumeDraft) return;
 
-    const blob = new Blob([resumeDraft], { type: "text/markdown;charset=utf-8" });
+    const blob = new Blob([resumeDraft], {
+      type: "text/markdown;charset=utf-8",
+    });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -221,20 +296,31 @@ export default function ResumeAnalyzer() {
         </h1>
         <p className="mt-3 max-w-3xl text-slate-600">
           Generate an honest resume draft from your saved career profile, or
-          analyze an existing PDF. The AI does not invent experience, and results
-          stay in this screen session.
+          analyze an existing PDF. The AI does not invent experience, and
+          results stay in this screen session.
         </p>
       </section>
 
       {!online && (
         <div className="mb-6 flex items-start gap-3 rounded-2xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-900">
           <WifiOff className="mt-0.5 shrink-0" size={18} />
-          <p>You are offline. Resume AI actions will be available after reconnecting.</p>
+          <p>
+            You are offline. Resume AI actions will be available after
+            reconnecting.
+          </p>
         </div>
       )}
 
-      {error && <p className="mb-5 rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}
-      {status && <p className="mb-5 rounded-2xl bg-[#eaf8f5] p-4 text-sm font-semibold text-[#16806d]">{status}</p>}
+      {error && (
+        <p className="mb-5 rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700">
+          {error}
+        </p>
+      )}
+      {status && (
+        <p className="mb-5 rounded-2xl bg-[#eaf8f5] p-4 text-sm font-semibold text-[#16806d]">
+          {status}
+        </p>
+      )}
 
       <section className="mb-6 grid gap-6 lg:grid-cols-2">
         <div className="rounded-3xl border border-teal-100 bg-white p-8 shadow-sm">
@@ -245,6 +331,10 @@ export default function ResumeAnalyzer() {
           <p className="text-slate-600">
             Complete your career profile first so the generated draft is based
             on your actual information.
+          </p>
+          <p className="mt-3 rounded-xl bg-[#f4fbfa] p-3 text-sm font-semibold text-[#16806d]">
+            System-recommended career:{" "}
+            {systemCareer || "Calculating recommendation..."}
           </p>
           <button
             type="button"
@@ -303,7 +393,10 @@ export default function ResumeAnalyzer() {
 
           <div className="mt-5 flex gap-3 rounded-2xl bg-[#f4fbfa] p-4 text-sm text-slate-600">
             <Info className="mt-0.5 shrink-0 text-[#16806d]" size={19} />
-            <p>Your PDF is not uploaded to a public bucket or stored by this page.</p>
+            <p>
+              Your PDF is not uploaded to a public bucket or stored by this
+              page.
+            </p>
           </div>
         </div>
       </section>
@@ -313,7 +406,9 @@ export default function ResumeAnalyzer() {
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <FileText className="text-[#16806d]" />
-              <h2 className="text-2xl font-extrabold">Generated Resume Draft</h2>
+              <h2 className="text-2xl font-extrabold">
+                Generated Resume Draft
+              </h2>
             </div>
             <button
               type="button"
@@ -348,14 +443,17 @@ export default function ResumeAnalyzer() {
             )}
 
             <p className="mt-3 max-w-2xl whitespace-pre-line leading-relaxed text-slate-600">
-              {analysis || "Select a PDF and choose Analyze Resume to receive AI feedback."}
+              {analysis ||
+                "Select a PDF and choose Analyze Resume to receive AI feedback."}
             </p>
           </div>
         </div>
 
         {suggestions.length > 0 && (
           <div className="mt-6 rounded-2xl border border-orange-100 bg-orange-50 p-5">
-            <h3 className="font-extrabold text-orange-900">Review these suggestions</h3>
+            <h3 className="font-extrabold text-orange-900">
+              Review these suggestions
+            </h3>
             <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-orange-900">
               {suggestions.map((suggestion) => (
                 <li key={suggestion}>{suggestion}</li>

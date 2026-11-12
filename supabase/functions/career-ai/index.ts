@@ -2,14 +2,12 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const GEMINI_MODELS = [
-  "gemini-3.5-flash-lite",
-  "gemini-3.8-flash",
-] as const;
+const GEMINI_MODELS = ["gemini-3.5-flash-lite", "gemini-3.8-flash"] as const;
 const GEMINI_RETRY_DELAYS_MS = [500];
 const GEMINI_REQUEST_TIMEOUT_MS = 25_000;
 const MAX_ANSWER_LENGTH = 8_000;
@@ -33,6 +31,15 @@ type ProfileContext = {
 };
 
 type GeminiSchema = Record<string, unknown>;
+
+type CareerRow = {
+  name: string;
+  category: string;
+  description: string;
+  entry_thresholds: Record<string, number>;
+  junior_thresholds: Record<string, number>;
+  senior_thresholds: Record<string, number>;
+};
 
 const jsonHeaders = {
   ...corsHeaders,
@@ -84,7 +91,9 @@ function extractGeminiText(payload: Record<string, unknown>) {
     ? payload.candidates
     : [];
   const firstCandidate = candidates[0] as Record<string, unknown> | undefined;
-  const content = firstCandidate?.content as Record<string, unknown> | undefined;
+  const content = firstCandidate?.content as
+    | Record<string, unknown>
+    | undefined;
   const parts = Array.isArray(content?.parts) ? content.parts : [];
   const firstPart = parts[0] as Record<string, unknown> | undefined;
 
@@ -98,16 +107,20 @@ function wait(milliseconds: number) {
 async function callGemini(
   apiKey: string,
   contents: Array<Record<string, unknown>>,
-  responseSchema: GeminiSchema
+  responseSchema: GeminiSchema,
 ) {
   let lastError = "Gemini could not complete the request.";
 
   for (const model of GEMINI_MODELS) {
-    for (let attempt = 0; attempt <= GEMINI_RETRY_DELAYS_MS.length; attempt += 1) {
+    for (
+      let attempt = 0;
+      attempt <= GEMINI_RETRY_DELAYS_MS.length;
+      attempt += 1
+    ) {
       const controller = new AbortController();
       const timeout = setTimeout(
         () => controller.abort(),
-        GEMINI_REQUEST_TIMEOUT_MS
+        GEMINI_REQUEST_TIMEOUT_MS,
       );
 
       let result: Response;
@@ -125,7 +138,7 @@ async function callGemini(
               },
             }),
             signal: controller.signal,
-          }
+          },
         );
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
@@ -168,7 +181,11 @@ async function callGemini(
 
       // 503 means temporary capacity pressure. 429 may also recover after a
       // short wait. Retry the current model, then move to the next fallback.
-      if (result.status !== 503 && result.status !== 429 && result.status !== 404) {
+      if (
+        result.status !== 503 &&
+        result.status !== 429 &&
+        result.status !== 404
+      ) {
         throw new Error(lastError);
       }
 
@@ -192,10 +209,96 @@ function profileContext(row: Record<string, unknown> | null): ProfileContext {
   };
 }
 
+function recommendationLevel(academicYear: unknown) {
+  const value = text(academicYear, 40).toLowerCase();
+  if (value.includes("4") || value.includes("senior")) return "senior";
+  if (value.includes("2") || value.includes("3") || value.includes("junior")) {
+    return "junior";
+  }
+  return "entry";
+}
+
+function getRecommendationThresholds(career: CareerRow, academicYear: unknown) {
+  const level = recommendationLevel(academicYear);
+  if (level === "senior") return career.senior_thresholds ?? {};
+  if (level === "junior") return career.junior_thresholds ?? {};
+  return career.entry_thresholds ?? {};
+}
+
+function getSystemCareer(
+  profileRow: Record<string, unknown> | null,
+  careers: CareerRow[],
+  skills: Array<{ id: string; name: string }>,
+  studentSkills: Array<{ skill_id: string; score: number }>,
+) {
+  const scoreBySkillId = new Map(
+    studentSkills.map((item) => [
+      item.skill_id,
+      Math.max(0, Math.min(100, Number(item.score) || 0)),
+    ]),
+  );
+  const interests = stringArray(profileRow?.interests).map((item) =>
+    item.toLowerCase(),
+  );
+
+  return (
+    careers
+      .map((career) => {
+        const thresholds = getRecommendationThresholds(
+          career,
+          profileRow?.academic_year,
+        );
+        const comparisons = Object.entries(thresholds).map(
+          ([skillName, rawRequired]) => {
+            const skill = skills.find(
+              (item) => item.name.toLowerCase() === skillName.toLowerCase(),
+            );
+            const required = Math.max(
+              0,
+              Math.min(100, Number(rawRequired) || 0),
+            );
+            const current = skill ? (scoreBySkillId.get(skill.id) ?? 0) : 0;
+            return required === 0
+              ? 100
+              : Math.min(100, (current / required) * 100);
+          },
+        );
+        const skillScore = comparisons.length
+          ? comparisons.reduce((total, value) => total + value, 0) /
+            comparisons.length
+          : 0;
+        const careerText =
+          `${career.name} ${career.category} ${career.description}`.toLowerCase();
+        const matchedInterests = interests.filter(
+          (interest) =>
+            careerText.includes(interest) ||
+            interest
+              .split(/[^a-z0-9]+/)
+              .filter((word) => word.length >= 3)
+              .some((word) => careerText.includes(word)),
+        );
+        const interestScore = interests.length
+          ? (matchedInterests.length / interests.length) * 100
+          : 0;
+        const score = interests.length
+          ? skillScore * 0.8 + interestScore * 0.2
+          : skillScore;
+
+        return { career, score, skillScore };
+      })
+      .sort(
+        (left, right) =>
+          right.score - left.score ||
+          right.skillScore - left.skillScore ||
+          left.career.name.localeCompare(right.career.name),
+      )[0]?.career.name ?? ""
+  );
+}
+
 function decodePdfSignature(base64: string) {
   try {
     const bytes = Uint8Array.from(atob(base64.slice(0, 16)), (character) =>
-      character.charCodeAt(0)
+      character.charCodeAt(0),
     );
     return new TextDecoder().decode(bytes).startsWith("%PDF-");
   } catch {
@@ -246,7 +349,9 @@ async function main(request: Request) {
 
   const { data: profileRow, error: profileError } = await serviceClient
     .from("profiles")
-    .select("first_name, last_name, program, career_target, interests, technologies")
+    .select(
+      "first_name, last_name, program, academic_year, career_target, interests, technologies",
+    )
     .eq("id", user.id)
     .maybeSingle();
 
@@ -264,7 +369,7 @@ async function main(request: Request) {
   const quotaKind = action.startsWith("interview") ? "interview" : "resume";
   const { data: quotaAllowed, error: quotaError } = await serviceClient.rpc(
     "consume_career_ai_quota",
-    { p_user_id: user.id, p_kind: quotaKind }
+    { p_user_id: user.id, p_kind: quotaKind },
   );
 
   if (quotaError) {
@@ -273,16 +378,54 @@ async function main(request: Request) {
 
   if (!quotaAllowed) {
     return response(
-      { error: "You have reached the daily AI request limit. Please try again tomorrow." },
-      429
+      {
+        error:
+          "You have reached the daily AI request limit. Please try again tomorrow.",
+      },
+      429,
     );
   }
 
-  const careerProfile = profileContext(profileRow as Record<string, unknown> | null);
+  const { data: careerRows, error: careersError } = await serviceClient
+    .from("careers")
+    .select(
+      "name, category, description, entry_thresholds, junior_thresholds, senior_thresholds",
+    );
+  const { data: skillRows, error: skillsError } = await serviceClient
+    .from("skills")
+    .select("id, name");
+  const { data: studentSkillRows, error: studentSkillsError } =
+    await serviceClient
+      .from("student_skills")
+      .select("skill_id, score")
+      .eq("student_id", user.id);
+
+  if (careersError || skillsError || studentSkillsError) {
+    return response(
+      { error: "Unable to calculate your system career recommendation." },
+      503,
+    );
+  }
+
+  const careerProfile = profileContext(
+    profileRow as Record<string, unknown> | null,
+  );
+  const systemCareer = getSystemCareer(
+    profileRow as Record<string, unknown> | null,
+    (careerRows ?? []) as CareerRow[],
+    (skillRows ?? []) as Array<{ id: string; name: string }>,
+    (studentSkillRows ?? []) as Array<{ skill_id: string; score: number }>,
+  );
+  const effectiveCareerProfile = systemCareer
+    ? { ...careerProfile, career_target: systemCareer }
+    : careerProfile;
 
   if (action === "interview_questions") {
     const moduleName = text(body.module, 160) || "IT career preparation";
-    const moduleContext = text(body.approved_module_context, MAX_CONTEXT_LENGTH);
+    const moduleContext = text(
+      body.approved_module_context,
+      MAX_CONTEXT_LENGTH,
+    );
     const requestSeed = text(body.request_seed, 100) || crypto.randomUUID();
 
     return response(
@@ -293,7 +436,7 @@ async function main(request: Request) {
             role: "user",
             parts: [
               {
-                text: `Create exactly 5 different interview questions for the student's target career. Use only the approved module context. Do not invent topics outside the module. Return concise questions suitable for a student. Avoid repeating common questions when possible. This is a new generation request with seed ${requestSeed}; use it to vary the question set. Module: ${moduleName}. Approved module context: ${moduleContext}. Career profile: ${JSON.stringify(careerProfile)}`,
+                text: `Create exactly 5 different interview questions for the student's system-recommended career. Use only the approved module context. Do not invent topics outside the module. Return concise questions suitable for a student. Avoid repeating common questions when possible. This is a new generation request with seed ${requestSeed}; use it to vary the question set. Module: ${moduleName}. Approved module context: ${moduleContext}. Career profile: ${JSON.stringify(effectiveCareerProfile)}`,
               },
             ],
           },
@@ -316,8 +459,8 @@ async function main(request: Request) {
             },
           },
           required: ["questions"],
-        }
-      )
+        },
+      ),
     );
   }
 
@@ -325,10 +468,16 @@ async function main(request: Request) {
     const question = text(body.question, 1_000);
     const answer = text(body.answer, MAX_ANSWER_LENGTH);
     const moduleName = text(body.module, 160);
-    const moduleContext = text(body.approved_module_context, MAX_CONTEXT_LENGTH);
+    const moduleContext = text(
+      body.approved_module_context,
+      MAX_CONTEXT_LENGTH,
+    );
 
     if (!question || !answer || !moduleContext) {
-      return response({ error: "Question, answer, and module context are required." }, 400);
+      return response(
+        { error: "Question, answer, and module context are required." },
+        400,
+      );
     }
 
     return response(
@@ -339,7 +488,7 @@ async function main(request: Request) {
             role: "user",
             parts: [
               {
-                text: `Evaluate this interview answer only against the approved module content. Do not judge knowledge outside the module. Give specific, encouraging feedback and a score from 0 to 100. Module: ${moduleName}. Approved module content: ${moduleContext}. Question: ${question}. Student answer: ${answer}. Career profile: ${JSON.stringify(careerProfile)}`,
+                text: `Evaluate this interview answer only against the approved module content. Do not judge knowledge outside the module. Give specific, encouraging feedback and a score from 0 to 100. Module: ${moduleName}. Approved module content: ${moduleContext}. Question: ${question}. Student answer: ${answer}. Career profile: ${JSON.stringify(effectiveCareerProfile)}`,
               },
             ],
           },
@@ -351,8 +500,8 @@ async function main(request: Request) {
             score: { type: "number", minimum: 0, maximum: 100 },
           },
           required: ["feedback", "score"],
-        }
-      )
+        },
+      ),
     );
   }
 
@@ -365,7 +514,7 @@ async function main(request: Request) {
             role: "user",
             parts: [
               {
-                text: `Create an honest one-page resume draft using only this student's profile context. Include the student's first and last name at the top of the draft. Use the program, career target, interests, and technologies to personalize the draft. Do not invent employers, dates, grades, certificates, projects, or achievements. Use clear placeholders for any resume sections that are not provided. Make the draft suitable for an IT student targeting the stated career. Profile context: ${JSON.stringify(careerProfile)}`,
+                text: `Create an honest one-page resume draft using only this student's profile context. Include the student's first and last name at the top of the draft. Use the program, system-recommended career, interests, and technologies to personalize the draft. Do not invent employers, dates, grades, certificates, projects, or achievements. Use clear placeholders for any resume sections that are not provided. Make the draft suitable for an IT student targeting the stated system-recommended career. Profile context: ${JSON.stringify(effectiveCareerProfile)}`,
               },
             ],
           },
@@ -380,8 +529,8 @@ async function main(request: Request) {
             },
           },
           required: ["resume_markdown", "suggestions"],
-        }
-      )
+        },
+      ),
     );
   }
 
@@ -396,7 +545,10 @@ async function main(request: Request) {
     pdfBase64.length > MAX_PDF_BASE64_LENGTH ||
     !decodePdfSignature(pdfBase64)
   ) {
-    return response({ error: "Upload a valid, unencrypted PDF resume up to 10 MB." }, 400);
+    return response(
+      { error: "Upload a valid, unencrypted PDF resume up to 10 MB." },
+      400,
+    );
   }
 
   return response(
@@ -407,7 +559,7 @@ async function main(request: Request) {
           role: "user",
           parts: [
             {
-              text: `Analyze this resume for the student's target IT career. Refer only to the actual document and the career-related profile context. Do not invent information. Identify strengths, missing or unclear sections, skills to improve, and concrete next steps. A score is coaching guidance, not a hiring probability. Profile context: ${JSON.stringify(careerProfile)}`,
+              text: `Analyze this resume for the student's system-recommended IT career. Refer only to the actual document and the career-related profile context. Do not invent information. Identify strengths, missing or unclear sections, skills to improve, and concrete next steps. A score is coaching guidance, not a hiring probability. Profile context: ${JSON.stringify(effectiveCareerProfile)}`,
             },
             {
               inline_data: {
@@ -429,8 +581,8 @@ async function main(request: Request) {
           },
         },
         required: ["analysis", "alignment_score", "warnings"],
-      }
-    )
+      },
+    ),
   );
 }
 
@@ -438,7 +590,10 @@ Deno.serve(async (request) => {
   try {
     return await main(request);
   } catch (error) {
-    console.error("career-ai request failed:", error instanceof Error ? error.message : "unknown error");
+    console.error(
+      "career-ai request failed:",
+      error instanceof Error ? error.message : "unknown error",
+    );
     return response(
       {
         error:
@@ -446,7 +601,7 @@ Deno.serve(async (request) => {
             ? error.message.slice(0, 500)
             : "The AI request could not be completed.",
       },
-      500
+      500,
     );
   }
 });

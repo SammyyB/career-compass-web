@@ -578,11 +578,11 @@ export default function Profile() {
           <div className="self-start rounded-3xl border border-teal-100 bg-white p-7 shadow-sm">
             <div className="mb-5 flex items-center gap-3">
               <Target className="text-[#16806d]" />
-              <h2 className="text-xl font-extrabold">Career Target</h2>
+              <h2 className="text-xl font-extrabold">Preferred Career Goal</h2>
             </div>
 
             <label className="text-sm font-semibold">
-              Current Career Target
+              Preferred Career Goal
               <select
                 value={form.careerTarget}
                 onChange={(event) => update("careerTarget", event.target.value)}
@@ -595,6 +595,11 @@ export default function Profile() {
                   </option>
                 ))}
               </select>
+              <p className="mt-2 text-xs text-slate-500">
+                This is your preference for personalized guidance. Career
+                recommendations are ranked separately using your skills and
+                interests.
+              </p>
             </label>
 
             <div className="mt-5 rounded-2xl bg-[#eaf8f5] p-4">

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import { Award, BarChart3, BriefcaseBusiness, Layers } from "lucide-react";
 
 import StudentLayout from "../../components/StudentLayout";
@@ -22,7 +21,6 @@ import {
 } from "../../services/repository";
 
 export default function CareerRecommendations() {
-  const [searchParams] = useSearchParams();
   const { profile, session } = useAuth();
   const [careers, setCareers] = useState<Career[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -80,25 +78,18 @@ export default function CareerRecommendations() {
         skills,
         studentSkills,
         profile?.academic_year,
-        profile?.career_target,
+        profile?.interests,
       ),
     [
       careers,
       profile?.academic_year,
-      profile?.career_target,
+      profile?.interests,
       skills,
       studentSkills,
     ],
   );
 
-  const requestedCareerId =
-    searchParams.get("careerId") ??
-    specializations.find(
-      (item) => item.id === searchParams.get("specializationId"),
-    )?.career_id;
-  const primary =
-    rankedResults.find((item) => item.career.id === requestedCareerId) ??
-    rankedResults[0];
+  const primary = rankedResults[0];
   const results = primary
     ? [
         primary,
@@ -126,10 +117,17 @@ export default function CareerRecommendations() {
         </p>
         <h1 className="mt-2 text-4xl font-extrabold">Career Path Results</h1>
         <p className="mt-3 max-w-3xl text-slate-600">
-          The primary path is ranked first using your saved skill scores and the
-          administrator&apos;s thresholds. Secondary paths remain visible for
-          comparison.
+          The primary path is ranked using your saved skill scores, interests,
+          and the administrator&apos;s thresholds. Secondary paths remain
+          visible for comparison.
         </p>
+        {profile?.career_target && (
+          <p className="mt-4 inline-flex rounded-full bg-white/70 px-4 py-2 text-sm font-semibold text-slate-700">
+            Preferred career goal: {profile.career_target}. This preference is
+            used to personalize guidance; it does not override the system
+            ranking.
+          </p>
+        )}
       </section>
 
       {error && (

@@ -13,7 +13,11 @@ import StudentLayout from "../../components/StudentLayout";
 import { useAuth } from "../../context/AuthContext";
 import type { Career, Skill, StudentSkill } from "../../lib/types";
 import { rankCareers } from "../../services/recommendations";
-import { listCareers, listSkills, listStudentSkills } from "../../services/repository";
+import {
+  listCareers,
+  listSkills,
+  listStudentSkills,
+} from "../../services/repository";
 
 export default function StudentDashboard() {
   const { profile, session } = useAuth();
@@ -56,9 +60,15 @@ export default function StudentDashboard() {
         skills,
         studentSkills,
         profile?.academic_year,
-        profile?.career_target
+        profile?.interests,
       ),
-    [careers, profile?.academic_year, profile?.career_target, skills, studentSkills]
+    [
+      careers,
+      profile?.academic_year,
+      profile?.interests,
+      skills,
+      studentSkills,
+    ],
   );
 
   const displayName = profile?.first_name || "Student";
@@ -71,7 +81,7 @@ export default function StudentDashboard() {
     profile?.career_target,
   ];
   const profileCompletion = Math.round(
-    (profileFields.filter(Boolean).length / profileFields.length) * 100
+    (profileFields.filter(Boolean).length / profileFields.length) * 100,
   );
 
   const cards = [
@@ -109,12 +119,17 @@ export default function StudentDashboard() {
         <p className="text-sm font-bold uppercase tracking-wide text-teal-700">
           Student Dashboard
         </p>
-        <h1 className="mt-2 text-4xl font-extrabold">Welcome back, {displayName}</h1>
+        <h1 className="mt-2 text-4xl font-extrabold">
+          Welcome back, {displayName}
+        </h1>
         <p className="mt-3 max-w-2xl text-lg text-slate-600">
           Track your skill progress and discover the career paths that best fit
           your saved scores and academic year.
         </p>
-        <TrendingUp className="absolute bottom-0 right-10 opacity-10" size={150} />
+        <TrendingUp
+          className="absolute bottom-0 right-10 opacity-10"
+          size={150}
+        />
       </section>
 
       <section className="mb-10 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
@@ -128,7 +143,9 @@ export default function StudentDashboard() {
             </div>
             <div>
               <p className="text-sm font-semibold text-slate-600">{title}</p>
-              <h2 className="text-4xl font-extrabold text-slate-900">{value}</h2>
+              <h2 className="text-4xl font-extrabold text-slate-900">
+                {value}
+              </h2>
               <span className="text-sm text-slate-500">{note}</span>
             </div>
           </div>
@@ -139,7 +156,8 @@ export default function StudentDashboard() {
         <div>
           <h2 className="text-2xl font-extrabold">Career Match Overview</h2>
           <p className="text-slate-500">
-            Primary and secondary paths are calculated from your saved skill scores.
+            Primary and secondary paths are calculated from your saved skill
+            scores.
           </p>
         </div>
         <button
@@ -165,9 +183,16 @@ export default function StudentDashboard() {
           <div className="xl:col-span-2 rounded-3xl bg-gradient-to-br from-[#1f8f78] to-[#36a889] p-8 text-white shadow-lg">
             <div className="flex items-center gap-3">
               <AwardIcon />
-              <p className="font-bold uppercase tracking-wide">Primary career</p>
+              <p className="font-bold uppercase tracking-wide">
+                <span className="mr-2 inline-flex rounded-full bg-white/20 px-2 py-1 text-[10px] uppercase tracking-wide">
+                  Primary
+                </span>
+                Career recommendation
+              </p>
             </div>
-            <h3 className="mt-5 text-3xl font-extrabold">{primary.career.name}</h3>
+            <h3 className="mt-5 text-3xl font-extrabold">
+              {primary.career.name}
+            </h3>
             <p className="mt-2 text-emerald-50">{primary.career.description}</p>
             <div className="mt-7 flex items-end justify-between gap-4">
               <div>
@@ -199,7 +224,12 @@ export default function StudentDashboard() {
               {matches.slice(1, 4).map((match) => (
                 <div key={match.career.id}>
                   <div className="flex justify-between gap-3 text-sm font-bold">
-                    <span>{match.career.name}</span>
+                    <span>
+                      <span className="mr-2 inline-flex rounded-full bg-slate-100 px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide text-slate-600">
+                        Secondary
+                      </span>
+                      {match.career.name}
+                    </span>
                     <span className="text-[#16806d]">{match.score}%</span>
                   </div>
                   <div className="mt-2 h-3 rounded-full bg-slate-100">

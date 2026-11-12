@@ -16,6 +16,7 @@ import {
   getCareerLevel,
   getCurrentSkillScore,
   getThresholds,
+  rankCareers,
 } from "../../services/recommendations";
 import {
   listCareers,
@@ -66,7 +67,7 @@ export default function SkillGapAnalysis() {
         setError(
           loadError instanceof Error
             ? loadError.message
-            : "Unable to load your skill data."
+            : "Unable to load your skill data.",
         );
       } finally {
         setLoading(false);
@@ -76,9 +77,24 @@ export default function SkillGapAnalysis() {
     void load();
   }, [session?.user.id]);
 
-  const selectedCareer =
-    careers.find((career) => career.name === profile?.career_target) ??
-    careers[0];
+  const rankedCareers = useMemo(
+    () =>
+      rankCareers(
+        careers,
+        skills,
+        studentSkills,
+        profile?.academic_year,
+        profile?.interests,
+      ),
+    [
+      careers,
+      profile?.academic_year,
+      profile?.interests,
+      skills,
+      studentSkills,
+    ],
+  );
+  const selectedCareer = rankedCareers[0]?.career ?? careers[0];
   const careerLevel = getCareerLevel(profile?.academic_year);
 
   const rows = useMemo(() => {
@@ -88,7 +104,7 @@ export default function SkillGapAnalysis() {
 
     return Object.entries(thresholds).map(([skillName, rawRequired]) => {
       const skill = skills.find(
-        (item) => item.name.toLowerCase() === skillName.toLowerCase()
+        (item) => item.name.toLowerCase() === skillName.toLowerCase(),
       );
       const savedScore = skill ? scores[skill.id] : undefined;
       const current =
@@ -97,7 +113,8 @@ export default function SkillGapAnalysis() {
           : Math.max(0, Math.min(100, Number(savedScore) || 0));
       const required = Math.max(0, Math.min(100, Number(rawRequired)));
       const gap = Math.max(0, required - current);
-      const readiness = required === 0 ? 100 : Math.min(100, (current / required) * 100);
+      const readiness =
+        required === 0 ? 100 : Math.min(100, (current / required) * 100);
       const status =
         current >= required
           ? "meets"
@@ -122,7 +139,7 @@ export default function SkillGapAnalysis() {
 
     return {
       readiness: Math.round(
-        rows.reduce((total, row) => total + row.readiness, 0) / rows.length
+        rows.reduce((total, row) => total + row.readiness, 0) / rows.length,
       ),
       gap: Math.round(rows.reduce((total, row) => total + row.gap, 0)),
     };
@@ -140,7 +157,11 @@ export default function SkillGapAnalysis() {
 
     const numericScore = Number(scores[skillId]);
 
-    if (!Number.isFinite(numericScore) || numericScore < 0 || numericScore > 100) {
+    if (
+      !Number.isFinite(numericScore) ||
+      numericScore < 0 ||
+      numericScore > 100
+    ) {
       setError("Skill scores must be numbers from 0 to 100.");
       return;
     }
@@ -153,19 +174,21 @@ export default function SkillGapAnalysis() {
       const saved = await saveStudentSkill(
         session.user.id,
         skillId,
-        numericScore
+        numericScore,
       );
 
       setStudentSkills((current) => [
         ...current.filter((item) => item.skill_id !== skillId),
         saved,
       ]);
-      setMessage("Skill score saved. Your graphs and recommendations are updated.");
+      setMessage(
+        "Skill score saved. Your graphs and recommendations are updated.",
+      );
     } catch (saveError) {
       setError(
         saveError instanceof Error
           ? saveError.message
-          : "Unable to save this skill score."
+          : "Unable to save this skill score.",
       );
     } finally {
       setSavingSkillId(null);
@@ -182,8 +205,8 @@ export default function SkillGapAnalysis() {
           Current Skills vs Required Skills
         </h1>
         <p className="mt-3 max-w-3xl text-slate-600">
-          Set your current score for each skill. The system compares it with
-          the administrator-defined threshold for your academic year and target
+          Set your current score for each skill. The system compares it with the
+          administrator-defined threshold for your academic year and target
           career.
         </p>
       </section>
@@ -242,13 +265,16 @@ export default function SkillGapAnalysis() {
         <div className="mb-6 flex items-center gap-3">
           <TrendingUp className="text-[#16806d]" />
           <div>
-            <h2 className="text-2xl font-extrabold">Graph-Based Skill Comparison</h2>
+            <h2 className="text-2xl font-extrabold">
+              Graph-Based Skill Comparison
+            </h2>
             <p className="mt-1 text-sm text-slate-500">
-            Compare your saved score with the required threshold and the remaining skill gap.
+              Compare your saved score with the required threshold and the
+              remaining skill gap.
             </p>
           </div>
 
-        <GraphLegend />
+          <GraphLegend />
         </div>
 
         {!selectedCareer ? (
@@ -268,10 +294,13 @@ export default function SkillGapAnalysis() {
               <div key={row.skillName}>
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="font-extrabold text-slate-800">{row.skillName}</p>
+                    <p className="font-extrabold text-slate-800">
+                      {row.skillName}
+                    </p>
                     <p className="text-xs text-slate-500">
-                      Current {Math.round(row.current)}% · Required {row.required}% ·
-                      Skill gap {Math.round(row.gap)} percentage points
+                      Current {Math.round(row.current)}% · Required{" "}
+                      {row.required}% · Skill gap {Math.round(row.gap)}{" "}
+                      percentage points
                     </p>
                   </div>
 
@@ -305,7 +334,9 @@ export default function SkillGapAnalysis() {
                   )}
                 </div>
 
-                <div className={`relative h-6 overflow-hidden rounded-full bg-slate-100 ${searchParams.get("skillId") === row.skill?.id ? "ring-4 ring-orange-200" : ""}`}>
+                <div
+                  className={`relative h-6 overflow-hidden rounded-full bg-slate-100 ${searchParams.get("skillId") === row.skill?.id ? "ring-4 ring-orange-200" : ""}`}
+                >
                   <div
                     className="absolute h-6 rounded-full bg-slate-300"
                     style={{ width: `${row.required}%` }}
@@ -317,9 +348,15 @@ export default function SkillGapAnalysis() {
                 </div>
 
                 <div className="mt-2 flex justify-between text-xs">
-                  <span className="font-semibold text-[#16806d]">Current score</span>
-                  <span className="font-semibold text-slate-500">Required threshold</span>
-                  <span className="font-semibold text-orange-600">Skill gap: {Math.round(row.gap)} percentage points</span>
+                  <span className="font-semibold text-[#16806d]">
+                    Current score
+                  </span>
+                  <span className="font-semibold text-slate-500">
+                    Required threshold
+                  </span>
+                  <span className="font-semibold text-orange-600">
+                    Skill gap: {Math.round(row.gap)} percentage points
+                  </span>
                 </div>
 
                 <div className="mt-2">

@@ -14,11 +14,15 @@ export type CareerMatch = {
   career: Career;
   level: CareerLevel;
   score: number;
+  skillScore: number;
+  interestScore: number;
   totalGap: number;
   comparisons: SkillComparison[];
 };
 
-export function getCareerLevel(academicYear: string | null | undefined): CareerLevel {
+export function getCareerLevel(
+  academicYear: string | null | undefined,
+): CareerLevel {
   const value = (academicYear ?? "").toLowerCase();
 
   if (value.includes("4") || value.includes("senior")) return "senior";
@@ -38,10 +42,10 @@ export function getThresholds(career: Career, level: CareerLevel) {
 export function getCurrentSkillScore(
   skillName: string,
   skills: Skill[],
-  studentSkills: StudentSkill[]
+  studentSkills: StudentSkill[],
 ) {
   const skill = skills.find(
-    (item) => item.name.toLowerCase() === skillName.toLowerCase()
+    (item) => item.name.toLowerCase() === skillName.toLowerCase(),
   );
 
   if (!skill) return 0;
@@ -54,7 +58,8 @@ export function calculateCareerMatch(
   career: Career,
   level: CareerLevel,
   skills: Skill[],
-  studentSkills: StudentSkill[]
+  studentSkills: StudentSkill[],
+  interests: string[] = [],
 ): CareerMatch {
   const thresholds = getThresholds(career, level);
   const comparisons = Object.entries(thresholds).map(
@@ -62,7 +67,8 @@ export function calculateCareerMatch(
       const required = Math.max(0, Math.min(100, Number(rawRequired)));
       const current = getCurrentSkillScore(skillName, skills, studentSkills);
       const gap = Math.max(0, required - current);
-      const readiness = required === 0 ? 100 : Math.min(100, (current / required) * 100);
+      const readiness =
+        required === 0 ? 100 : Math.min(100, (current / required) * 100);
 
       return {
         skillName,
@@ -71,20 +77,42 @@ export function calculateCareerMatch(
         gap,
         readiness,
       };
-    }
+    },
   );
 
-  const score = comparisons.length
+  const skillScore = comparisons.length
     ? Math.round(
         comparisons.reduce((total, item) => total + item.readiness, 0) /
-          comparisons.length
+          comparisons.length,
       )
     : 0;
+
+  const careerText =
+    `${career.name} ${career.category} ${career.description}`.toLowerCase();
+  const normalizedInterests = interests
+    .map((interest) => interest.trim().toLowerCase())
+    .filter(Boolean);
+  const matchedInterests = normalizedInterests.filter((interest) => {
+    if (careerText.includes(interest)) return true;
+
+    return interest
+      .split(/[^a-z0-9]+/)
+      .filter((word) => word.length >= 3)
+      .some((word) => careerText.includes(word));
+  });
+  const interestScore = normalizedInterests.length
+    ? Math.round((matchedInterests.length / normalizedInterests.length) * 100)
+    : 0;
+  const score = normalizedInterests.length
+    ? Math.round(skillScore * 0.8 + interestScore * 0.2)
+    : skillScore;
 
   return {
     career,
     level,
     score,
+    skillScore,
+    interestScore,
     totalGap: comparisons.reduce((total, item) => total + item.gap, 0),
     comparisons,
   };
@@ -95,17 +123,19 @@ export function rankCareers(
   skills: Skill[],
   studentSkills: StudentSkill[],
   academicYear: string | null | undefined,
-  careerTarget?: string | null
+  interests: string[] = [],
 ) {
   const level = getCareerLevel(academicYear);
 
   return careers
-    .map((career) => calculateCareerMatch(career, level, skills, studentSkills))
+    .map((career) =>
+      calculateCareerMatch(career, level, skills, studentSkills, interests),
+    )
     .sort((left, right) => {
-      const leftTarget = left.career.name === careerTarget ? 1 : 0;
-      const rightTarget = right.career.name === careerTarget ? 1 : 0;
-      // A saved career target is the student's preferred primary path. Keep it
-      // first, then use skill readiness to rank the remaining paths.
-      return rightTarget - leftTarget || right.score - left.score || left.career.name.localeCompare(right.career.name);
+      return (
+        right.score - left.score ||
+        right.skillScore - left.skillScore ||
+        left.career.name.localeCompare(right.career.name)
+      );
     });
 }

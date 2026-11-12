@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   ChevronLeft,
@@ -14,7 +14,14 @@ import { Link } from "react-router-dom";
 
 import StudentLayout from "../../components/StudentLayout";
 import { useAuth } from "../../context/AuthContext";
+import type { Career, Skill, StudentSkill } from "../../lib/types";
 import { invokeCareerAI } from "../../lib/careerAi";
+import {
+  listCareers,
+  listSkills,
+  listStudentSkills,
+} from "../../services/repository";
+import { rankCareers } from "../../services/recommendations";
 
 type InterviewQuestion = {
   question: string;
@@ -90,6 +97,9 @@ const focusClass =
 
 export default function InterviewCoach() {
   const { profile, session } = useAuth();
+  const [careers, setCareers] = useState<Career[]>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [studentSkills, setStudentSkills] = useState<StudentSkill[]>([]);
   const [questions, setQuestions] = useState(fallbackQuestions);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
@@ -103,10 +113,51 @@ export default function InterviewCoach() {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const currentQuestion = questions[questionIndex];
-  const careerTarget = profile?.career_target?.trim() ?? "";
+  const rankedCareers = useMemo(
+    () =>
+      rankCareers(
+        careers,
+        skills,
+        studentSkills,
+        profile?.academic_year,
+        profile?.interests,
+      ),
+    [
+      careers,
+      profile?.academic_year,
+      profile?.interests,
+      skills,
+      studentSkills,
+    ],
+  );
+  const systemCareer = rankedCareers[0]?.career.name ?? "";
   const currentAnswer = answers[questionIndex] ?? "";
   const currentFeedback = feedbacks[questionIndex];
   const currentScore = scores[questionIndex];
+
+  useEffect(() => {
+    if (!session?.user.id) return;
+
+    const loadRecommendationData = async () => {
+      try {
+        const [careerData, skillData, studentSkillData] = await Promise.all([
+          listCareers(),
+          listSkills(),
+          listStudentSkills(session.user.id),
+        ]);
+        setCareers(careerData);
+        setSkills(skillData);
+        setStudentSkills(studentSkillData);
+      } catch (loadError) {
+        console.error(
+          "Unable to load interview career recommendation:",
+          loadError,
+        );
+      }
+    };
+
+    void loadRecommendationData();
+  }, [session?.user.id]);
 
   useEffect(() => {
     const handleOnline = () => setOnline(true);
@@ -137,9 +188,9 @@ export default function InterviewCoach() {
   };
 
   const generateQuestions = async () => {
-    if (!careerTarget) {
+    if (!systemCareer) {
       setError(
-        "Choose a career target in your Profile before generating questions.",
+        "Complete your profile and skill information before generating questions.",
       );
       setStatus("");
       return;
@@ -164,11 +215,12 @@ export default function InterviewCoach() {
     try {
       const result = await invokeCareerAI<QuestionsResponse>({
         action: "interview_questions",
-        module: careerTarget,
+        module: systemCareer,
+        system_career: systemCareer,
         request_seed: crypto.randomUUID(),
         approved_module_context: fallbackQuestions
           .map((item) => `${item.module}: ${item.context}`)
-          .concat(`\nCareer target: ${careerTarget}`),
+          .concat(`\nSystem-recommended career: ${systemCareer}`),
       });
       const generated = (result.questions ?? [])
         .filter(
@@ -360,11 +412,12 @@ export default function InterviewCoach() {
             <h2 className="text-2xl font-extrabold">AI Question Set</h2>
           </div>
           <p className="text-slate-600">
-            Career target: {careerTarget || "Not selected"}
+            System-recommended career:{" "}
+            {systemCareer || "Calculating recommendation..."}
           </p>
-          {!careerTarget && (
+          {!systemCareer && (
             <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
-              Select a career target in your{" "}
+              Complete your profile and skill information in your{" "}
               <Link to="/profile" className="font-bold underline">
                 Profile
               </Link>{" "}
@@ -374,7 +427,7 @@ export default function InterviewCoach() {
           <button
             type="button"
             onClick={() => void generateQuestions()}
-            disabled={busy || !online || !careerTarget}
+            disabled={busy || !online || !systemCareer}
             className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#55b497] px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 ${focusClass}`}
           >
             <Sparkles size={18} />
