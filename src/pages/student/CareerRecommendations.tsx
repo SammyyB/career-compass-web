@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Award, BarChart3, BriefcaseBusiness, Layers } from "lucide-react";
+import {
+  Award,
+  BarChart3,
+  BriefcaseBusiness,
+  Layers,
+  Target,
+} from "lucide-react";
 
 import StudentLayout from "../../components/StudentLayout";
 import GraphLegend from "../../components/GraphLegend";
@@ -122,11 +128,19 @@ export default function CareerRecommendations() {
           visible for comparison.
         </p>
         {profile?.career_target && (
-          <p className="mt-4 inline-flex rounded-full bg-white/70 px-4 py-2 text-sm font-semibold text-slate-700">
-            Preferred career goal: {profile.career_target}. This preference is
-            used to personalize guidance; it does not override the system
-            ranking.
-          </p>
+          <div className="mt-6 flex w-full min-w-0 items-start gap-4 rounded-2xl border border-teal-200 border-l-4 border-l-[#16806d] bg-white p-5 shadow-sm sm:max-w-lg">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#eaf8f5] text-[#16806d]">
+              <Target size={24} aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-bold uppercase tracking-wide text-slate-600">
+                Preferred Career Goal
+              </p>
+              <p className="mt-1 break-words text-xl font-extrabold text-[#16806d] sm:text-2xl">
+                {profile.career_target}
+              </p>
+            </div>
+          </div>
         )}
       </section>
 
