@@ -359,11 +359,19 @@ async function main(request: Request) {
     return response({ error: "Unable to load your career profile." }, 500);
   }
 
-  const body = (await request.json()) as Record<string, unknown>;
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return response({ error: "The AI request body is not valid JSON." }, 400);
+  }
   const action = parseAction(body.action);
 
   if (!action) {
-    return response({ error: "Unsupported AI action." }, 400);
+    return response(
+      { error: `Unsupported AI action: ${String(body.action ?? "missing")}.` },
+      400,
+    );
   }
 
   const quotaKind = action.startsWith("interview") ? "interview" : "resume";
