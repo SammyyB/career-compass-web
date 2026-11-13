@@ -343,7 +343,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div className="mt-16 border-t border-teal-200/70 pt-4">
+        <div className="mt-8 border-t border-teal-200/70 pt-4">
           <button
             type="button"
             onClick={() => void handleLogout()}
