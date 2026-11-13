@@ -265,13 +265,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       setMenuOpen((current) => !current);
     }
   };
-  const closeSidebar = () => {
-    if (isWideSidebarLayout()) {
-      setDesktopSidebarCollapsed(true);
-    } else {
-      setMenuOpen(false);
-    }
-  };
   const sidebarClassName = menuOpen
     ? "translate-x-0"
     : desktopSidebarCollapsed
@@ -312,16 +305,16 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <p className="mt-1 text-sm text-slate-300">Admin Portal</p>
             </div>
           </NavLink>
-          {!desktopSidebarCollapsed || menuOpen ? (
+          {menuOpen && (
             <button
               type="button"
-              onClick={closeSidebar}
-              className={`absolute right-0 top-0 z-10 rounded-lg p-2 text-slate-300 hover:bg-white/10 hover:text-white ${focusClass}`}
-              aria-label="Close menu"
+              onClick={() => setMenuOpen(false)}
+              className={`absolute right-0 top-0 z-10 rounded-lg p-2 text-slate-300 hover:bg-white/10 hover:text-white xl:hidden ${focusClass}`}
+              aria-label="Close admin menu"
             >
-              <X size={22} />
+              <X size={22} aria-hidden="true" />
             </button>
-          ) : null}
+          )}
         </div>
 
         <nav className="space-y-3">
@@ -341,7 +334,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           ))}
         </nav>
 
-        <div className="mt-8 border-t border-slate-600/70 pt-4">
+        <div className="mt-auto border-t border-slate-600/70 pt-4">
           <button
             type="button"
             onClick={() => void handleLogout()}

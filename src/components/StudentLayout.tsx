@@ -306,6 +306,17 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
               </p>
             </div>
           </NavLink>
+
+          {mobileMenuOpen && (
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(false)}
+              className="absolute right-0 top-0 z-10 rounded-lg p-2 text-slate-600 hover:bg-white/70 hover:text-slate-900 xl:hidden"
+              aria-label="Close sidebar"
+            >
+              <X size={22} />
+            </button>
+          )}
         </div>
 
         <nav className="space-y-3">
@@ -332,7 +343,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div className="mt-8 border-t border-teal-200/70 pt-4">
+        <div className="mt-auto border-t border-teal-200/70 pt-4">
           <button
             type="button"
             onClick={() => void handleLogout()}
