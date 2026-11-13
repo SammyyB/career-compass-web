@@ -143,12 +143,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let handledAuthFlow = false;
     let initializationFinished = false;
 
-    const routeToPasswordForm = (hasSession: boolean) => {
+    const routeToPasswordForm = (
+      hasSession: boolean,
+      fallbackFlow?: "signup" | "reset" | "email_change",
+    ) => {
       if (!hasSession || handledAuthFlow) return;
 
-      const authFlow = new URLSearchParams(window.location.search).get(
-        "auth_flow"
-      );
+      const authFlow =
+        new URLSearchParams(window.location.search).get("auth_flow") ??
+        fallbackFlow;
 
       if (
         authFlow !== "signup" &&
@@ -165,6 +168,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const initialize = async () => {
+      // Older reset emails may point directly to /update-password. Because
+      // this app uses HashRouter, normalize that callback to the app root
+      // before Supabase tokens and the router are processed.
+      const appBase = new URL(import.meta.env.BASE_URL, window.location.origin);
+      const basePath = appBase.pathname.replace(/\/$/, "");
+      const currentPath = window.location.pathname.replace(/\/$/, "");
+      const directPasswordPath = basePath
+        ? `${basePath}/update-password`
+        : "/update-password";
+
+      if (currentPath === directPasswordPath) {
+        const directParams = new URLSearchParams(window.location.search);
+        const flow = directParams.get("flow") === "signup" ? "signup" : "reset";
+        directParams.delete("flow");
+        directParams.set("auth_flow", flow);
+        const normalizedUrl = new URL(appBase);
+        normalizedUrl.search = directParams.toString();
+        normalizedUrl.hash = window.location.hash;
+        window.history.replaceState(null, "", normalizedUrl.toString());
+      }
+
       const queryParams = new URLSearchParams(window.location.search);
       const callbackTokenHash = queryParams.get("token_hash");
       const callbackOtpType = queryParams.get("type");
@@ -234,7 +258,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.session?.user) await loadProfile(data.session.user.id);
       initializationFinished = true;
       setLoading(false);
-      routeToPasswordForm(Boolean(data.session));
+      const callbackType = callbackOtpType ?? callbackParams.get("type");
+      const callbackFlow =
+        callbackType === "recovery"
+          ? "reset"
+          : callbackType === "email_change"
+            ? "email_change"
+            : undefined;
+      routeToPasswordForm(Boolean(data.session), callbackFlow);
     };
 
     void initialize();
