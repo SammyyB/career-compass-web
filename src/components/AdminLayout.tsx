@@ -334,7 +334,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           ))}
         </nav>
 
-        <div className="mt-auto border-t border-slate-600/70 pt-4">
+        <div className="mt-16 border-t border-slate-600/70 pt-4">
           <button
             type="button"
             onClick={() => void handleLogout()}

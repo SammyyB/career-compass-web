@@ -141,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let mounted = true;
     let handledAuthFlow = false;
+    let initializationFinished = false;
 
     const routeToPasswordForm = (hasSession: boolean) => {
       if (!hasSession || handledAuthFlow) return;
@@ -231,6 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setSession(data.session);
       if (data.session?.user) await loadProfile(data.session.user.id);
+      initializationFinished = true;
       setLoading(false);
       routeToPasswordForm(Boolean(data.session));
     };
@@ -254,7 +256,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
       }
 
-      setLoading(false);
+      // Do not let ProtectedRoute redirect to Login while Supabase is still
+      // restoring the persisted session during the initial page load.
+      if (initializationFinished) setLoading(false);
       }
     );
 
