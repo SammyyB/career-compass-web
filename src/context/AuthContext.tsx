@@ -1,15 +1,10 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 
 import {
   requireSupabaseConfiguration,
+  initialAuthCallbackUrl,
   supabase,
   supabaseConfigured,
 } from "../lib/supabase";
@@ -68,12 +63,12 @@ export const PROFILE_SETUP_PENDING_KEY = "career-compass:profile-setup-pending";
 export function isStudentProfileComplete(profile: Profile | null | undefined) {
   return Boolean(
     profile?.first_name?.trim() &&
-      profile.last_name?.trim() &&
-      profile.student_id?.trim() &&
-      profile.program?.trim() &&
-      profile.career_target?.trim() &&
-      profile.interests?.length &&
-      profile.technologies?.length
+    profile.last_name?.trim() &&
+    profile.student_id?.trim() &&
+    profile.program?.trim() &&
+    profile.career_target?.trim() &&
+    profile.interests?.length &&
+    profile.technologies?.length,
   );
 }
 
@@ -142,6 +137,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true;
     let handledAuthFlow = false;
     let initializationFinished = false;
+    const initialCallback = new URL(initialAuthCallbackUrl);
+    const initialQuery = initialCallback.searchParams;
+    const initialFragment = new URLSearchParams(initialCallback.hash.slice(1));
+    const callbackType =
+      initialQuery.get("type") ?? initialFragment.get("type");
+    const detectedFlow =
+      initialQuery.get("auth_flow") ??
+      (callbackType === "recovery"
+        ? "reset"
+        : callbackType === "email_change"
+          ? "email_change"
+          : callbackType === "signup"
+            ? "signup"
+            : initialCallback.pathname
+                  .replace(/\/$/, "")
+                  .endsWith("/update-password")
+              ? initialQuery.get("flow") === "signup"
+                ? "signup"
+                : "reset"
+              : undefined);
 
     const routeToPasswordForm = (
       hasSession: boolean,
@@ -151,20 +166,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const authFlow =
         new URLSearchParams(window.location.search).get("auth_flow") ??
-        fallbackFlow;
+        fallbackFlow ??
+        detectedFlow;
 
       if (
         authFlow !== "signup" &&
         authFlow !== "reset" &&
         authFlow !== "email_change"
-      ) return;
+      )
+        return;
 
       handledAuthFlow = true;
       const appBase = new URL(import.meta.env.BASE_URL, window.location.origin);
       window.history.replaceState(null, "", appBase.toString());
-      window.location.hash = authFlow === "email_change"
-        ? "/profile?email=confirmed"
-        : `/update-password?flow=${authFlow}`;
+      window.location.hash =
+        authFlow === "email_change"
+          ? "/profile?email=confirmed"
+          : `/update-password?flow=${authFlow}`;
     };
 
     const initialize = async () => {
@@ -189,14 +207,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         window.history.replaceState(null, "", normalizedUrl.toString());
       }
 
-      const queryParams = new URLSearchParams(window.location.search);
+      const queryParams = initialQuery;
       const callbackTokenHash = queryParams.get("token_hash");
       const callbackOtpType = queryParams.get("type");
-      const callbackParams = new URLSearchParams(
-        window.location.hash.startsWith("#")
-          ? window.location.hash.slice(1)
-          : window.location.hash
-      );
+      const callbackParams = initialFragment;
       const callbackAccessToken = callbackParams.get("access_token");
       const callbackRefreshToken = callbackParams.get("refresh_token");
 
@@ -233,11 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Restore the implicit-flow session from Supabase's confirmation URL
       // before replacing its hash with a HashRouter route.
-      if (
-        !data.session &&
-        callbackAccessToken &&
-        callbackRefreshToken
-      ) {
+      if (!data.session && callbackAccessToken && callbackRefreshToken) {
         const restored = await supabase.auth.setSession({
           access_token: callbackAccessToken,
           refresh_token: callbackRefreshToken,
@@ -273,24 +283,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
-      (_event: unknown, nextSession: Session | null) => {
-      setSession(nextSession);
+      (event: string, nextSession: Session | null) => {
+        setSession(nextSession);
 
-      // Supabase may restore the confirmation session after getSession() has
-      // returned. Handle the auth event too so signup/reset links still reach
-      // the password form instead of leaving the user at the landing page.
-      routeToPasswordForm(Boolean(nextSession));
+        // Supabase may restore the confirmation session after getSession() has
+        // returned. Handle the auth event too so signup/reset links still reach
+        // the password form instead of leaving the user at the landing page.
+        routeToPasswordForm(
+          Boolean(nextSession),
+          event === "PASSWORD_RECOVERY" ? "reset" : undefined,
+        );
 
-      if (nextSession?.user) {
-        void loadProfile(nextSession.user.id);
-      } else {
-        setProfile(null);
-      }
+        if (nextSession?.user) {
+          // Run database work outside Supabase's auth notification lock.
+          window.setTimeout(() => {
+            if (mounted) void loadProfile(nextSession.user.id);
+          }, 0);
+        } else {
+          setProfile(null);
+        }
 
-      // Do not let ProtectedRoute redirect to Login while Supabase is still
-      // restoring the persisted session during the initial page load.
-      if (initializationFinished) setLoading(false);
-      }
+        // Do not let ProtectedRoute redirect to Login while Supabase is still
+        // restoring the persisted session during the initial page load.
+        if (initializationFinished) setLoading(false);
+      },
     );
 
     return () => {
@@ -315,7 +331,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!nextProfile) {
       await supabase.auth.signOut();
       throw new Error(
-        "Your account profile is not ready yet. Please complete your profile."
+        "Your account profile is not ready yet. Please complete your profile.",
       );
     }
 
@@ -326,7 +342,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const createStudentAccount = async (
     data: PasswordRegistration,
-    flow: "signup" | "reset" = "signup"
+    flow: "signup" | "reset" = "signup",
   ) => {
     requireSupabaseConfiguration();
 
@@ -397,7 +413,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { error } = await supabase.auth.resetPasswordForEmail(
       email.trim().toLowerCase(),
-      { redirectTo: getRedirectUrl("reset") }
+      { redirectTo: getRedirectUrl("reset") },
     );
 
     if (error) throw new Error(error.message);
@@ -413,7 +429,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { error } = await supabase.auth.updateUser(
       { email: normalizedEmail },
-      { emailRedirectTo: getRedirectUrl("email_change") }
+      { emailRedirectTo: getRedirectUrl("email_change") },
     );
 
     if (error) throw new Error(error.message);
@@ -424,7 +440,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!session) {
       throw new Error(
-        "This secure link is no longer active. Request a new password link and open it in this browser."
+        "This secure link is no longer active. Request a new password link and open it in this browser.",
       );
     }
 
@@ -458,7 +474,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updatePassword,
       refreshProfile,
     }),
-    [loading, profile, session]
+    [loading, profile, session],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

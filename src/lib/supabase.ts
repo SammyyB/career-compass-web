@@ -12,6 +12,10 @@ export const supabaseConfigured = Boolean(
       import.meta.env.VITE_SUPABASE_ANON_KEY)
 );
 
+// Captures the callback before the SDK or HashRouter can consume its fragment.
+// Keeps it in memory only; never logs or persist recovery tokens.
+export const initialAuthCallbackUrl = window.location.href;
+
 export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   auth: {
     autoRefreshToken: true,
