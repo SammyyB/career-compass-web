@@ -37,6 +37,9 @@ import {
   markNotificationRead,
 } from "../services/repository";
 
+const isWideSidebarLayout = () =>
+  window.matchMedia("(min-width: 1280px)").matches;
+
 const navItems = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { label: "Skill Gap Analysis", path: "/skill-gap", icon: TrendingUp },
@@ -212,13 +215,13 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
       .filter((record) =>
         `${record.label} ${record.type} ${record.detail}`
           .toLowerCase()
-          .includes(query)
+          .includes(query),
       )
       .slice(0, 8);
   }, [searchQuery, searchRecords]);
 
   const toggleSidebar = () => {
-    if (window.innerWidth >= 1024) {
+    if (isWideSidebarLayout()) {
       setDesktopSidebarCollapsed((current) => !current);
     } else {
       setMobileMenuOpen((current) => !current);
@@ -252,8 +255,8 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
           current.map((item) =>
             item.id === notification.id
               ? { ...item, read_at: new Date().toISOString() }
-              : item
-          )
+              : item,
+          ),
         );
       } catch (error) {
         console.error("Unable to mark notification as read:", error);
@@ -265,7 +268,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
     ? "translate-x-0"
     : desktopSidebarCollapsed
       ? "-translate-x-full"
-      : "-translate-x-full lg:translate-x-0";
+      : "-translate-x-full xl:translate-x-0";
 
   return (
     <div className="min-h-screen bg-[#f4fbfa] text-slate-800 flex">
@@ -274,13 +277,13 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
           type="button"
           aria-label="Close sidebar"
           onClick={() => setMobileMenuOpen(false)}
-          className="fixed inset-0 z-40 bg-slate-900/30 lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/30 xl:hidden"
         />
       )}
 
       <aside
         id="student-navigation"
-        className={`fixed left-0 top-0 z-50 h-screen h-[100dvh] min-h-screen w-[min(300px,calc(100vw-1rem))] max-w-full overflow-x-hidden overflow-y-auto border-r border-teal-100 bg-gradient-to-b from-[#dff6f2] to-[#eefaf8] px-4 py-8 pb-24 sm:px-5 transition-transform duration-200 ${sidebarClassName}`}
+        className={`fixed left-0 top-0 z-50 flex h-screen h-[100dvh] min-h-screen w-[min(300px,calc(100vw-1rem))] max-w-full flex-col overflow-x-hidden overflow-y-auto border-r border-teal-100 bg-gradient-to-b from-[#dff6f2] to-[#eefaf8] px-4 py-8 pb-24 sm:px-5 transition-transform duration-200 ${sidebarClassName}`}
       >
         <div className="relative mb-10 flex min-w-0 items-center gap-2 pr-10">
           <NavLink
@@ -298,20 +301,11 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
               <h1 className="whitespace-nowrap text-xl font-extrabold text-[#16806d]">
                 Career Compass
               </h1>
-              <p className="mt-1 text-sm text-slate-500">Navigate your future</p>
+              <p className="mt-1 text-sm text-slate-500">
+                Navigate your future
+              </p>
             </div>
           </NavLink>
-
-          {mobileMenuOpen && (
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(false)}
-              className="absolute right-0 top-0 z-10 rounded-lg p-2 text-slate-600 lg:hidden"
-              aria-label="Close sidebar"
-            >
-              <X size={22} />
-            </button>
-          )}
         </div>
 
         <nav className="space-y-3">
@@ -338,20 +332,22 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <button
-          type="button"
-          onClick={() => void handleLogout()}
-          disabled={loggingOut}
-          className="absolute bottom-8 left-5 right-5 flex items-center gap-3 rounded-xl px-5 py-4 font-semibold text-slate-700 hover:bg-red-50 hover:text-red-600 disabled:opacity-60"
-        >
-          <LogOut size={20} />
-          <span>{loggingOut ? "Logging out..." : "Logout"}</span>
-        </button>
+        <div className="mt-8 border-t border-teal-200/70 pt-4">
+          <button
+            type="button"
+            onClick={() => void handleLogout()}
+            disabled={loggingOut}
+            className="flex w-full shrink-0 items-center gap-3 rounded-xl px-5 py-4 font-semibold text-slate-700 hover:bg-red-50 hover:text-red-600 disabled:opacity-60"
+          >
+            <LogOut size={20} />
+            <span>{loggingOut ? "Logging out..." : "Logout"}</span>
+          </button>
+        </div>
       </aside>
 
       <div
         className={`min-w-0 flex-1 transition-[margin] duration-200 ${
-          desktopSidebarCollapsed ? "lg:ml-0" : "lg:ml-[300px]"
+          desktopSidebarCollapsed ? "xl:ml-0" : "xl:ml-[300px]"
         }`}
       >
         <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-2 border-b border-slate-100 bg-white/90 px-3 backdrop-blur sm:min-h-20 sm:gap-4 sm:px-6 lg:px-10">
@@ -361,7 +357,10 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
               onClick={toggleSidebar}
               className="shrink-0 text-[#16806d]"
               aria-label="Toggle student menu"
-              aria-expanded={!desktopSidebarCollapsed && (mobileMenuOpen || window.innerWidth >= 1024)}
+              aria-expanded={
+                !desktopSidebarCollapsed &&
+                (mobileMenuOpen || isWideSidebarLayout())
+              }
               aria-controls="student-navigation"
             >
               <Menu className="h-6 w-6 sm:h-7 sm:w-7" />
@@ -390,7 +389,9 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
                         onClick={() => handleSearchResult(result.path)}
                         className="w-full rounded-xl px-3 py-3 text-left hover:bg-[#eaf8f5]"
                       >
-                        <p className="font-bold text-slate-800">{result.label}</p>
+                        <p className="font-bold text-slate-800">
+                          {result.label}
+                        </p>
                         <p className="mt-1 text-xs text-slate-500">
                           {result.type} · {result.detail || "Career Compass"}
                         </p>
@@ -429,7 +430,10 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
               </button>
 
               {notificationOpen && (
-                <div id="student-notifications" className="absolute right-0 top-full z-50 mt-3 w-80 max-w-[calc(100vw-2rem)] rounded-2xl border border-teal-100 bg-white p-3 shadow-xl">
+                <div
+                  id="student-notifications"
+                  className="absolute right-0 top-full z-50 mt-3 w-80 max-w-[calc(100vw-2rem)] rounded-2xl border border-teal-100 bg-white p-3 shadow-xl"
+                >
                   <div className="flex items-center justify-between border-b border-slate-100 px-2 pb-3">
                     <h2 className="font-extrabold">Notifications</h2>
                     <button
@@ -456,7 +460,9 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
                         <button
                           key={notification.id}
                           type="button"
-                          onClick={() => void handleNotificationClick(notification)}
+                          onClick={() =>
+                            void handleNotificationClick(notification)
+                          }
                           className={`w-full rounded-xl px-3 py-3 text-left hover:bg-[#eaf8f5] ${
                             notification.read_at ? "" : "bg-[#f4fbfa]"
                           }`}

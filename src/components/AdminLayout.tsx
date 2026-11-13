@@ -37,6 +37,9 @@ import {
   listStudentProfiles,
 } from "../services/repository";
 
+const isWideSidebarLayout = () =>
+  window.matchMedia("(min-width: 1280px)").matches;
+
 const navItems = [
   ["Dashboard", "/admin", LayoutDashboard],
   ["Student Records", "/admin/students", Users],
@@ -256,14 +259,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     if (nextValue) void loadNotifications();
   };
   const toggleSidebar = () => {
-    if (window.innerWidth >= 1024) {
+    if (isWideSidebarLayout()) {
       setDesktopSidebarCollapsed((current) => !current);
     } else {
       setMenuOpen((current) => !current);
     }
   };
   const closeSidebar = () => {
-    if (window.innerWidth >= 1024) {
+    if (isWideSidebarLayout()) {
       setDesktopSidebarCollapsed(true);
     } else {
       setMenuOpen(false);
@@ -273,7 +276,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     ? "translate-x-0"
     : desktopSidebarCollapsed
       ? "-translate-x-full"
-      : "-translate-x-full lg:translate-x-0";
+      : "-translate-x-full xl:translate-x-0";
 
   return (
     <div className="admin-theme flex min-h-screen bg-[#f1f5f9] text-slate-800">
@@ -282,13 +285,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           type="button"
           aria-label="Close admin menu"
           onClick={() => setMenuOpen(false)}
-          className="fixed inset-0 z-40 bg-slate-900/20 lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/20 xl:hidden"
         />
       )}
 
       <aside
         id="admin-navigation"
-        className={`${sidebarClassName} fixed left-0 top-0 z-50 h-screen h-[100dvh] min-h-screen w-[min(300px,calc(100vw-1rem))] max-w-full overflow-x-hidden overflow-y-auto border-r border-slate-700 bg-gradient-to-b from-[#0f1b33] to-[#17243d] px-4 py-8 pb-24 text-white transition-transform duration-200 sm:px-5`}
+        className={`${sidebarClassName} fixed left-0 top-0 z-50 flex h-screen h-[100dvh] min-h-screen w-[min(300px,calc(100vw-1rem))] max-w-full flex-col overflow-x-hidden overflow-y-auto border-r border-slate-700 bg-gradient-to-b from-[#0f1b33] to-[#17243d] px-4 py-8 pb-24 text-white transition-transform duration-200 sm:px-5`}
         aria-label="Administrator navigation"
       >
         <div className="relative mb-10 min-w-0 pr-10">
@@ -338,19 +341,21 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           ))}
         </nav>
 
-        <button
-          type="button"
-          onClick={() => void handleLogout()}
-          disabled={loggingOut}
-          className={`absolute bottom-8 left-5 right-5 flex items-center gap-3 rounded-xl px-5 py-4 font-semibold text-slate-200 hover:bg-white/10 hover:text-white disabled:opacity-60 ${focusClass}`}
-        >
-          <LogOut size={20} aria-hidden="true" />
-          <span>{loggingOut ? "Logging out..." : "Logout"}</span>
-        </button>
+        <div className="mt-8 border-t border-slate-600/70 pt-4">
+          <button
+            type="button"
+            onClick={() => void handleLogout()}
+            disabled={loggingOut}
+            className={`flex w-full shrink-0 items-center gap-3 rounded-xl px-5 py-4 font-semibold text-slate-200 hover:bg-white/10 hover:text-white disabled:opacity-60 ${focusClass}`}
+          >
+            <LogOut size={20} aria-hidden="true" />
+            <span>{loggingOut ? "Logging out..." : "Logout"}</span>
+          </button>
+        </div>
       </aside>
 
       <div
-        className={`w-full min-w-0 flex-1 transition-[margin] duration-200 ${desktopSidebarCollapsed ? "lg:ml-0" : "lg:ml-[300px]"}`}
+        className={`w-full min-w-0 flex-1 transition-[margin] duration-200 ${desktopSidebarCollapsed ? "xl:ml-0" : "xl:ml-[300px]"}`}
       >
         <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-2 border-b border-slate-700 bg-[#0f1b33] px-3 text-white shadow-sm sm:min-h-20 sm:gap-4 sm:px-5 lg:px-10">
           <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
@@ -360,8 +365,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               className={`shrink-0 rounded-lg p-1 text-white hover:bg-white/10 ${focusClass}`}
               aria-label="Toggle admin menu"
               aria-expanded={
-                !desktopSidebarCollapsed &&
-                (menuOpen || window.innerWidth >= 1024)
+                !desktopSidebarCollapsed && (menuOpen || isWideSidebarLayout())
               }
               aria-controls="admin-navigation"
             >
