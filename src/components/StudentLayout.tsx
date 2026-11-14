@@ -5,6 +5,7 @@ import {
   Briefcase,
   FileText,
   GraduationCap,
+  History,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -44,6 +45,11 @@ const navItems = [
     label: "Interview Coach",
     path: "/interview-coach",
     icon: MessageSquareText,
+  },
+  {
+    label: "Interview Progress",
+    path: "/interview-progress",
+    icon: History,
   },
   {
     label: "Resume Builder & Analyzer",

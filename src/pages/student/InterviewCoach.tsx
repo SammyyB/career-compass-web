@@ -339,11 +339,29 @@ export default function InterviewCoach() {
       }));
       if (session?.user.id) {
         try {
+          const persistedFeedback = [
+            nextFeedback,
+            ...(result.strengths?.length
+              ? [
+                  `Strengths:\n${result.strengths.map((item) => `- ${item}`).join("\n")}`,
+                ]
+              : []),
+            ...(result.improvement_areas?.length
+              ? [
+                  `Improvement areas:\n${result.improvement_areas.map((item) => `- ${item}`).join("\n")}`,
+                ]
+              : []),
+            ...(result.next_steps?.length
+              ? [
+                  `Practice steps:\n${result.next_steps.map((item) => `- ${item}`).join("\n")}`,
+                ]
+              : []),
+          ].join("\n\n");
           await saveStudentInterviewSession(
             session.user.id,
             currentQuestion.question,
             currentAnswer.trim(),
-            nextFeedback,
+            persistedFeedback,
             nextScore,
           );
           setStatus("Feedback generated and saved to your interview progress.");

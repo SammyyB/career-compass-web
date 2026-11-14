@@ -12,6 +12,7 @@ import SkillGapAnalysis from "../pages/student/SkillGapAnalysis";
 import ElectiveRecommendations from "../pages/student/ElectiveRecommendations";
 import CareerRecommendations from "../pages/student/CareerRecommendations";
 import InterviewCoach from "../pages/student/InterviewCoach";
+import InterviewProgress from "../pages/student/InterviewProgress";
 import ResumeAnalyzer from "../pages/student/ResumeAnalyzer";
 import Profile from "../pages/student/Profile";
 
@@ -41,6 +42,7 @@ export default function AppRoutes() {
         <Route path="/elective-recommendations" element={<ProtectedRoute allowedRole="student"><ElectiveRecommendations /></ProtectedRoute>} />
         <Route path="/career-recommendations" element={<ProtectedRoute allowedRole="student"><CareerRecommendations /></ProtectedRoute>} />
         <Route path="/interview-coach" element={<ProtectedRoute allowedRole="student"><InterviewCoach /></ProtectedRoute>} />
+        <Route path="/interview-progress" element={<ProtectedRoute allowedRole="student"><InterviewProgress /></ProtectedRoute>} />
         <Route path="/resume-analyzer" element={<ProtectedRoute allowedRole="student"><ResumeAnalyzer /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute allowedRole="student"><Profile /></ProtectedRoute>} />
 
