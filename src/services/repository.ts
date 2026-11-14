@@ -30,7 +30,7 @@ async function writeAuditLog(
   actorId: string,
   action: string,
   entityTable: string,
-  entityId: string
+  entityId: string,
 ) {
   const { error } = await supabase.from("audit_logs").insert({
     actor_id: actorId,
@@ -67,7 +67,7 @@ function toPageResult<T>(
   data: T[] | null,
   count: number | null,
   page: number,
-  pageSize: number
+  pageSize: number,
 ): PaginatedResult<T> {
   const total = count ?? 0;
 
@@ -83,17 +83,15 @@ function toPageResult<T>(
 export function listStudentProfiles(): Promise<Profile[]>;
 export function listStudentProfiles(search: string): Promise<Profile[]>;
 export function listStudentProfiles(
-  options: StudentProfileQuery
+  options: StudentProfileQuery,
 ): Promise<PaginatedResult<Profile>>;
 export async function listStudentProfiles(
-  input: string | StudentProfileQuery = ""
+  input: string | StudentProfileQuery = "",
 ): Promise<Profile[] | PaginatedResult<Profile>> {
   requireSupabaseConfiguration();
 
   const legacyCall = typeof input === "string";
-  const options: StudentProfileQuery = legacyCall
-    ? { search: input }
-    : input;
+  const options: StudentProfileQuery = legacyCall ? { search: input } : input;
   const page = Math.max(1, options.page ?? 1);
   const pageSize = legacyCall
     ? 100
@@ -118,7 +116,7 @@ export async function listStudentProfiles(
         `student_id.ilike.%${safeSearch}%`,
         `username.ilike.%${safeSearch}%`,
         `program.ilike.%${safeSearch}%`,
-      ].join(",")
+      ].join(","),
     );
   }
 
@@ -159,8 +157,20 @@ export async function listStudentFilterOptions() {
   }>;
 
   return {
-    academicYears: Array.from(new Set(rows.map((row) => row.academic_year).filter((value): value is string => Boolean(value)))).sort(),
-    programs: Array.from(new Set(rows.map((row) => row.program).filter((value): value is string => Boolean(value)))).sort(),
+    academicYears: Array.from(
+      new Set(
+        rows
+          .map((row) => row.academic_year)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ).sort(),
+    programs: Array.from(
+      new Set(
+        rows
+          .map((row) => row.program)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ).sort(),
   };
 }
 
@@ -190,7 +200,7 @@ export async function listApprovedStudentIds(search = "") {
         `student_id.ilike.%${safeSearch}%`,
         `program.ilike.%${safeSearch}%`,
         `notes.ilike.%${safeSearch}%`,
-      ].join(",")
+      ].join(","),
     );
   }
 
@@ -202,7 +212,10 @@ export async function listApprovedStudentIds(search = "") {
 export async function saveApprovedStudentId(
   userId: string,
   studentId: string,
-  values: Pick<ApprovedStudentId, "program" | "academic_year" | "is_active" | "notes">
+  values: Pick<
+    ApprovedStudentId,
+    "program" | "academic_year" | "is_active" | "notes"
+  >,
 ) {
   requireSupabaseConfiguration();
 
@@ -215,17 +228,25 @@ export async function saveApprovedStudentId(
         created_by: userId,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "student_id" }
+      { onConflict: "student_id" },
     )
     .select("*")
     .single();
 
   if (error) throw error;
-  await writeAuditLog(userId, "upsert", "approved_student_ids", data.student_id);
+  await writeAuditLog(
+    userId,
+    "upsert",
+    "approved_student_ids",
+    data.student_id,
+  );
   return data as ApprovedStudentId;
 }
 
-export async function deleteApprovedStudentId(userId: string, studentId: string) {
+export async function deleteApprovedStudentId(
+  userId: string,
+  studentId: string,
+) {
   requireSupabaseConfiguration();
 
   const { error } = await supabase
@@ -240,21 +261,28 @@ export async function deleteApprovedStudentId(userId: string, studentId: string)
 export async function getDataQualitySummary(): Promise<DataQualitySummary> {
   requireSupabaseConfiguration();
 
-  const [studentsResult, careersResult, electivesResult, mappingsResult, scoresResult] =
-    await Promise.all([
-      supabase
-        .from("profiles")
-        .select(
-          "id, first_name, last_name, student_id, email, program, interests, technologies, academic_year"
-        )
-        .eq("role", "student"),
-      supabase
-        .from("careers")
-        .select("id, name, entry_thresholds, junior_thresholds, senior_thresholds"),
-      supabase.from("electives").select("id, name"),
-      supabase.from("elective_mappings").select("elective_id"),
-      supabase.from("student_skills").select("student_id"),
-    ]);
+  const [
+    studentsResult,
+    careersResult,
+    electivesResult,
+    mappingsResult,
+    scoresResult,
+  ] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select(
+        "id, first_name, last_name, student_id, email, program, interests, technologies, academic_year",
+      )
+      .eq("role", "student"),
+    supabase
+      .from("careers")
+      .select(
+        "id, name, entry_thresholds, junior_thresholds, senior_thresholds",
+      ),
+    supabase.from("electives").select("id, name"),
+    supabase.from("elective_mappings").select("elective_id"),
+    supabase.from("student_skills").select("student_id"),
+  ]);
 
   for (const result of [
     studentsResult,
@@ -288,7 +316,7 @@ export async function getDataQualitySummary(): Promise<DataQualitySummary> {
         !student.program ||
         !student.academic_year ||
         !student.interests?.length ||
-        !student.technologies?.length
+        !student.technologies?.length,
     )
     .map((student) => ({
       id: student.id,
@@ -306,8 +334,13 @@ export async function getDataQualitySummary(): Promise<DataQualitySummary> {
     junior_thresholds: Record<string, unknown> | null;
     senior_thresholds: Record<string, unknown> | null;
   }>;
-  const electives = (electivesResult.data ?? []) as Array<{ id: string; name: string }>;
-  const mappings = (mappingsResult.data ?? []) as Array<{ elective_id: string }>;
+  const electives = (electivesResult.data ?? []) as Array<{
+    id: string;
+    name: string;
+  }>;
+  const mappings = (mappingsResult.data ?? []) as Array<{
+    elective_id: string;
+  }>;
   const scores = (scoresResult.data ?? []) as Array<{ student_id: string }>;
 
   const missingThresholds = careers
@@ -318,7 +351,8 @@ export async function getDataQualitySummary(): Promise<DataQualitySummary> {
         career.senior_thresholds,
       ];
       return thresholds.some(
-        (value) => !value || Object.keys(value as Record<string, unknown>).length === 0
+        (value) =>
+          !value || Object.keys(value as Record<string, unknown>).length === 0,
       );
     })
     .map((career) => ({
@@ -327,7 +361,9 @@ export async function getDataQualitySummary(): Promise<DataQualitySummary> {
       detail: "One or more level thresholds are missing.",
     }));
 
-  const mappedElectiveIds = new Set(mappings.map((mapping) => String(mapping.elective_id)));
+  const mappedElectiveIds = new Set(
+    mappings.map((mapping) => String(mapping.elective_id)),
+  );
   const unmappedElectives = electives
     .filter((elective) => !mappedElectiveIds.has(String(elective.id)))
     .map((elective) => ({
@@ -336,7 +372,9 @@ export async function getDataQualitySummary(): Promise<DataQualitySummary> {
       detail: "No skill mapping is configured.",
     }));
 
-  const scoredStudentIds = new Set(scores.map((score) => String(score.student_id)));
+  const scoredStudentIds = new Set(
+    scores.map((score) => String(score.student_id)),
+  );
   const studentsWithoutSkillScores = students
     .filter((student) => !scoredStudentIds.has(student.id))
     .map((student) => ({
@@ -362,7 +400,7 @@ export async function listRecentAuditLogs(limit = 20) {
   const { data, error } = await supabase
     .from("audit_logs")
     .select(
-      "id, actor_id, action, entity_table, entity_id, details, created_at, actor:profiles!audit_logs_actor_id_fkey(first_name, middle_name, last_name, email)"
+      "id, actor_id, action, entity_table, entity_id, details, created_at, actor:profiles!audit_logs_actor_id_fkey(first_name, middle_name, last_name, email)",
     )
     .order("created_at", { ascending: false })
     .limit(Math.min(50, Math.max(1, limit)));
@@ -380,10 +418,12 @@ export async function listRecentAuditLogs(limit = 20) {
 
   const rows = (data ?? []) as SupabaseAuditRow[];
 
-  return rows.map((row): AuditLog => ({
-    ...row,
-    actor: row.actor?.[0] ?? null,
-  }));
+  return rows.map(
+    (row): AuditLog => ({
+      ...row,
+      actor: row.actor?.[0] ?? null,
+    }),
+  );
 }
 
 export async function listCareers() {
@@ -466,7 +506,7 @@ export async function listCompletedStudentElectives(studentId: string) {
 export async function setStudentElectiveCompleted(
   studentId: string,
   electiveId: string,
-  completed: boolean
+  completed: boolean,
 ) {
   requireSupabaseConfiguration();
 
@@ -475,7 +515,7 @@ export async function setStudentElectiveCompleted(
       .from("student_electives")
       .upsert(
         { student_id: studentId, elective_id: electiveId },
-        { onConflict: "student_id,elective_id" }
+        { onConflict: "student_id,elective_id" },
       )
       .select("student_id, elective_id, completed_at")
       .single();
@@ -520,10 +560,29 @@ export async function listStudentInterviewSessions(studentId: string) {
   return (data ?? []) as InterviewSession[];
 }
 
+export async function saveStudentInterviewSession(
+  userId: string,
+  question: string,
+  answer: string,
+  feedback: string,
+  score: number,
+) {
+  requireSupabaseConfiguration();
+
+  const { data, error } = await supabase
+    .from("interview_sessions")
+    .insert({ user_id: userId, question, answer, feedback, score })
+    .select("id, user_id, question, answer, feedback, score, created_at")
+    .single();
+
+  if (error) throw error;
+  return data as InterviewSession;
+}
+
 export async function saveStudentSkill(
   studentId: string,
   skillId: string,
-  score: number
+  score: number,
 ) {
   requireSupabaseConfiguration();
 
@@ -536,7 +595,7 @@ export async function saveStudentSkill(
         score,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "student_id,skill_id" }
+      { onConflict: "student_id,skill_id" },
     )
     .select("*, skill:skills(name, default_weight)")
     .single();
@@ -561,7 +620,7 @@ export async function listNotifications(userId: string) {
 
 export async function markNotificationRead(
   userId: string,
-  notificationId: string
+  notificationId: string,
 ) {
   requireSupabaseConfiguration();
 
@@ -574,10 +633,7 @@ export async function markNotificationRead(
   if (error) throw error;
 }
 
-export async function saveProfile(
-  userId: string,
-  values: Partial<Profile>
-) {
+export async function saveProfile(userId: string, values: Partial<Profile>) {
   requireSupabaseConfiguration();
   const { data, error } = await supabase
     .from("profiles")
@@ -601,7 +657,7 @@ export async function saveCareer(
     | "entry_thresholds"
     | "junior_thresholds"
     | "senior_thresholds"
-  >
+  >,
 ) {
   requireSupabaseConfiguration();
   const payload = { ...values, updated_at: new Date().toISOString() };
@@ -618,7 +674,7 @@ export async function saveCareer(
 export async function saveSkill(
   userId: string,
   id: string | null,
-  values: Pick<Skill, "name" | "category" | "default_weight">
+  values: Pick<Skill, "name" | "category" | "default_weight">,
 ) {
   requireSupabaseConfiguration();
   const payload = { ...values, updated_at: new Date().toISOString() };
@@ -638,19 +694,26 @@ export async function saveSpecialization(
   values: Pick<
     Specialization,
     "name" | "career_id" | "required_skills" | "recommended_electives"
-  >
+  >,
 ) {
   requireSupabaseConfiguration();
   const payload = { ...values, updated_at: new Date().toISOString() };
   const query = id
     ? supabase.from("specializations").update(payload).eq("id", id)
-    : supabase.from("specializations").insert({ ...payload, created_by: userId });
+    : supabase
+        .from("specializations")
+        .insert({ ...payload, created_by: userId });
   const { data, error } = await query
     .select("*, career:careers(name)")
     .single();
 
   if (error) throw error;
-  await writeAuditLog(userId, id ? "update" : "create", "specializations", data.id);
+  await writeAuditLog(
+    userId,
+    id ? "update" : "create",
+    "specializations",
+    data.id,
+  );
   return data as Specialization;
 }
 
@@ -660,19 +723,26 @@ export async function saveElectiveMapping(
   values: Pick<
     ElectiveMapping,
     "elective_id" | "skill_id" | "boost_percentage" | "formula"
-  >
+  >,
 ) {
   requireSupabaseConfiguration();
   const payload = { ...values, updated_at: new Date().toISOString() };
   const query = id
     ? supabase.from("elective_mappings").update(payload).eq("id", id)
-    : supabase.from("elective_mappings").insert({ ...payload, created_by: userId });
+    : supabase
+        .from("elective_mappings")
+        .insert({ ...payload, created_by: userId });
   const { data, error } = await query
     .select("*, elective:electives(name), skill:skills(name)")
     .single();
 
   if (error) throw error;
-  await writeAuditLog(userId, id ? "update" : "create", "elective_mappings", data.id);
+  await writeAuditLog(
+    userId,
+    id ? "update" : "create",
+    "elective_mappings",
+    data.id,
+  );
   return data as ElectiveMapping;
 }
 

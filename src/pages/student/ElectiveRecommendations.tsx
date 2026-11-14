@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
   BookOpen,
@@ -17,7 +17,10 @@ import type {
   Specialization,
   StudentSkill,
 } from "../../lib/types";
-import { rankCareers } from "../../services/recommendations";
+import {
+  getRecommendationReadiness,
+  rankCareers,
+} from "../../services/recommendations";
 import {
   listCareers,
   listElectiveMappings,
@@ -116,19 +119,26 @@ export default function ElectiveRecommendations() {
     }
   };
 
+  const recommendationReadiness = useMemo(
+    () => getRecommendationReadiness(profile, careers, skills, studentSkills),
+    [careers, profile, skills, studentSkills],
+  );
   const rankedCareers = useMemo(
     () =>
-      rankCareers(
-        careers,
-        skills,
-        studentSkills,
-        profile?.academic_year,
-        profile?.interests,
-      ),
+      recommendationReadiness.ready
+        ? rankCareers(
+            careers,
+            skills,
+            studentSkills,
+            profile?.academic_year,
+            profile?.interests,
+          )
+        : [],
     [
       careers,
       profile?.academic_year,
       profile?.interests,
+      recommendationReadiness.ready,
       skills,
       studentSkills,
     ],
@@ -229,6 +239,33 @@ export default function ElectiveRecommendations() {
       {loading ? (
         <div className="rounded-3xl border border-teal-100 bg-white p-8 text-slate-500 shadow-sm">
           Loading elective recommendations...
+        </div>
+      ) : !recommendationReadiness.ready ? (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-8 shadow-sm">
+          <h2 className="text-2xl font-extrabold">
+            Complete your career plan first
+          </h2>
+          <p className="mt-2 text-slate-700">
+            Electives are recommended only after the system has enough profile
+            and skill information to identify your primary career path.
+          </p>
+          <p className="mt-4 font-bold text-slate-800">
+            Still needed: {recommendationReadiness.missing.join(", ")}
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              to="/profile"
+              className="rounded-xl bg-[#1f8f78] px-5 py-3 font-bold text-white"
+            >
+              Complete Profile
+            </Link>
+            <Link
+              to="/skill-gap"
+              className="rounded-xl border border-teal-200 bg-white px-5 py-3 font-bold text-[#16806d]"
+            >
+              Enter Skill Scores
+            </Link>
+          </div>
         </div>
       ) : !primary ? (
         <div className="rounded-3xl border border-teal-100 bg-white p-8 text-slate-500 shadow-sm">

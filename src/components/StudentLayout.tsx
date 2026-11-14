@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Bell,
@@ -9,7 +9,6 @@ import {
   LogOut,
   Menu,
   MessageSquareText,
-  Search,
   TrendingUp,
   User,
   WifiOff,
@@ -19,21 +18,9 @@ import { NavLink, useNavigate } from "react-router-dom";
 
 import logo from "../assets/images/career-compass-logo.png";
 import { useAuth } from "../context/AuthContext";
-import type {
-  Career,
-  Elective,
-  ElectiveMapping,
-  Skill,
-  Specialization,
-  UserNotification,
-} from "../lib/types";
+import type { UserNotification } from "../lib/types";
 import {
-  listCareers,
-  listElectiveMappings,
-  listElectives,
   listNotifications,
-  listSkills,
-  listSpecializations,
   markNotificationRead,
 } from "../services/repository";
 
@@ -66,14 +53,6 @@ const navItems = [
   { label: "Profile", path: "/profile", icon: User },
 ] as const;
 
-type SearchRecord = {
-  id: string;
-  label: string;
-  type: string;
-  detail: string;
-  path: string;
-};
-
 function formatNotificationDate(value: string) {
   return new Intl.DateTimeFormat(undefined, {
     month: "short",
@@ -87,8 +66,6 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchRecords, setSearchRecords] = useState<SearchRecord[]>([]);
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
@@ -122,71 +99,6 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
 
   const unreadCount = notifications.filter((item) => !item.read_at).length;
 
-  useEffect(() => {
-    let mounted = true;
-
-    const loadSearchRecords = async () => {
-      try {
-        const [careers, skills, electives, specializations, mappings] =
-          await Promise.all([
-            listCareers(),
-            listSkills(),
-            listElectives(),
-            listSpecializations(),
-            listElectiveMappings(),
-          ]);
-
-        if (!mounted) return;
-
-        setSearchRecords([
-          ...(careers as Career[]).map((item) => ({
-            id: item.id,
-            label: item.name,
-            type: "Career path",
-            detail: item.category,
-            path: `/career-recommendations?careerId=${encodeURIComponent(item.id)}`,
-          })),
-          ...(skills as Skill[]).map((item) => ({
-            id: item.id,
-            label: item.name,
-            type: "Skill",
-            detail: item.category,
-            path: `/skill-gap?skillId=${encodeURIComponent(item.id)}`,
-          })),
-          ...(electives as Elective[]).map((item) => ({
-            id: item.id,
-            label: item.name,
-            type: "Elective",
-            detail: item.description,
-            path: `/elective-recommendations?electiveId=${encodeURIComponent(item.id)}`,
-          })),
-          ...(specializations as Specialization[]).map((item) => ({
-            id: item.id,
-            label: item.name,
-            type: "Specialization",
-            detail: item.career?.name ?? "Career specialization",
-            path: `/career-recommendations?specializationId=${encodeURIComponent(item.id)}`,
-          })),
-          ...(mappings as ElectiveMapping[]).map((item) => ({
-            id: item.id,
-            label: item.elective?.name ?? "Elective mapping",
-            type: "Elective mapping",
-            detail: `${item.skill?.name ?? "Skill"} +${item.boost_percentage}%`,
-            path: `/elective-recommendations?mappingId=${encodeURIComponent(item.id)}`,
-          })),
-        ]);
-      } catch (error) {
-        console.error("Unable to load student search data:", error);
-      }
-    };
-
-    void loadSearchRecords();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
   const loadStudentNotifications = async () => {
     if (!session?.user.id) return;
 
@@ -205,20 +117,6 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     void loadStudentNotifications();
   }, [session?.user.id]);
-
-  const searchResults = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-
-    if (!query) return [];
-
-    return searchRecords
-      .filter((record) =>
-        `${record.label} ${record.type} ${record.detail}`
-          .toLowerCase()
-          .includes(query),
-      )
-      .slice(0, 8);
-  }, [searchQuery, searchRecords]);
 
   const toggleSidebar = () => {
     if (isWideSidebarLayout()) {
@@ -240,11 +138,6 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
     } finally {
       navigate("/", { replace: true });
     }
-  };
-
-  const handleSearchResult = (path: string) => {
-    setSearchQuery("");
-    navigate(path);
   };
 
   const handleNotificationClick = async (notification: UserNotification) => {
@@ -376,46 +269,6 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
             >
               <Menu className="h-6 w-6 sm:h-7 sm:w-7" />
             </button>
-
-            <div className="relative min-w-0 w-[clamp(7rem,42vw,16rem)] lg:w-[360px]">
-              <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-[#f4fbfa] px-3 py-2.5 sm:px-5 sm:py-3">
-                <Search size={18} className="shrink-0 text-slate-400" />
-                <input
-                  id="student-global-search"
-                  aria-label="Search Career Compass records"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search anything..."
-                  className="w-full min-w-0 bg-transparent text-sm outline-none"
-                />
-              </div>
-
-              {searchQuery.trim() && (
-                <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-80 overflow-y-auto rounded-2xl border border-teal-100 bg-white p-2 shadow-xl">
-                  {searchResults.length > 0 ? (
-                    searchResults.map((result) => (
-                      <button
-                        key={`${result.type}-${result.id}`}
-                        type="button"
-                        onClick={() => handleSearchResult(result.path)}
-                        className="w-full rounded-xl px-3 py-3 text-left hover:bg-[#eaf8f5]"
-                      >
-                        <p className="font-bold text-slate-800">
-                          {result.label}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {result.type} · {result.detail || "Career Compass"}
-                        </p>
-                      </button>
-                    ))
-                  ) : (
-                    <p className="px-3 py-4 text-sm text-slate-500">
-                      No matching Career Compass records found.
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-1 sm:gap-3 lg:gap-6">

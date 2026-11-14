@@ -299,6 +299,8 @@ export default function Profile() {
       const missingFields = [
         !form.firstName.trim() && "First name",
         !form.lastName.trim() && "Last name",
+        !form.studentId.trim() && "Student ID",
+        !form.academicYear && "Academic year",
         !form.program.trim() && "Program",
         !form.careerTarget.trim() && "Career target",
         interests.length === 0 && "At least one interest",
@@ -381,9 +383,10 @@ export default function Profile() {
             A few details are needed
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Complete your first and last name, Student ID, program, career
-            target, at least one interest, and at least one technology. Your
-            dashboard will open after you save a complete profile.
+            Complete your name, Student ID, academic year, program, preferred
+            career goal, at least one interest, and at least one technology.
+            After saving, enter your skill scores in Skill Gap Analysis so the
+            system can calculate your recommendation.
           </p>
         </section>
       )}

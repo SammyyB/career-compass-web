@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
+  Info,
   Save,
   Target,
   TrendingUp,
@@ -16,6 +17,7 @@ import {
   getCareerLevel,
   getCurrentSkillScore,
   getThresholds,
+  hasConfiguredThresholds,
   rankCareers,
 } from "../../services/recommendations";
 import {
@@ -94,8 +96,16 @@ export default function SkillGapAnalysis() {
       studentSkills,
     ],
   );
-  const selectedCareer = rankedCareers[0]?.career ?? careers[0];
   const careerLevel = getCareerLevel(profile?.academic_year);
+  const preferredCareer = careers.find(
+    (career) =>
+      career.name.trim().toLowerCase() ===
+      profile?.career_target?.trim().toLowerCase(),
+  );
+  const selectedCareer =
+    rankedCareers[0]?.career ??
+    preferredCareer ??
+    careers.find((career) => hasConfiguredThresholds(career, careerLevel));
 
   const rows = useMemo(() => {
     if (!selectedCareer) return [];
@@ -206,8 +216,57 @@ export default function SkillGapAnalysis() {
         </h1>
         <p className="mt-3 max-w-3xl text-slate-600">
           Set your current score for each skill. The system compares it with the
-          administrator-defined threshold for your academic year and target
-          career.
+          administrator-defined threshold for your academic year and the
+          system-ranked career paths.
+        </p>
+      </section>
+
+      <section className="mb-6 rounded-3xl border border-teal-100 bg-white p-7 shadow-sm">
+        <div className="flex items-start gap-3">
+          <Info className="mt-1 shrink-0 text-[#16806d]" />
+          <div>
+            <h2 className="text-xl font-extrabold">
+              How should I choose my score?
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              This is a self-assessment, so base it on recent evidence such as
+              coursework, completed projects, practical exercises, feedback, or
+              work experience. Do not score yourself based only on interest. If
+              you are unsure, choose the lower score and improve it as you gain
+              evidence.
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-5">
+          {[
+            ["0", "No exposure", "I have not studied or practiced this yet."],
+            ["1–25", "Aware", "I recognize the basics but need full guidance."],
+            ["26–50", "Guided", "I can complete simple tasks with support."],
+            [
+              "51–75",
+              "Independent",
+              "I can complete common tasks and troubleshoot.",
+            ],
+            [
+              "76–100",
+              "Advanced",
+              "I handle complex cases and can explain my approach.",
+            ],
+          ].map(([range, label, description]) => (
+            <div key={range} className="rounded-2xl bg-[#f4fbfa] p-4">
+              <p className="font-extrabold text-[#16806d]">
+                {range} · {label}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                {description}
+              </p>
+            </div>
+          ))}
+        </div>
+        <p className="mt-4 rounded-2xl bg-amber-50 p-4 text-xs leading-relaxed text-amber-900">
+          These scores are coaching estimates, not exam grades or proof of
+          professional certification. The recommendation becomes more useful
+          when your scores are supported by actual work you can show.
         </p>
       </section>
 
@@ -258,6 +317,12 @@ export default function SkillGapAnalysis() {
           <p className="mt-2 font-semibold capitalize text-[#16806d]">
             {careerLevel} threshold
           </p>
+          {!rankedCareers[0] && selectedCareer && (
+            <p className="mt-2 text-xs leading-relaxed text-slate-500">
+              This is a reference career for entering your first scores. It is
+              not yet your system recommendation.
+            </p>
+          )}
         </div>
       </section>
 

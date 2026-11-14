@@ -12,7 +12,10 @@ import { useNavigate } from "react-router-dom";
 import StudentLayout from "../../components/StudentLayout";
 import { useAuth } from "../../context/AuthContext";
 import type { Career, Skill, StudentSkill } from "../../lib/types";
-import { rankCareers } from "../../services/recommendations";
+import {
+  getRecommendationReadiness,
+  rankCareers,
+} from "../../services/recommendations";
 import {
   listCareers,
   listSkills,
@@ -53,19 +56,26 @@ export default function StudentDashboard() {
     void load();
   }, [session?.user.id]);
 
+  const recommendationReadiness = useMemo(
+    () => getRecommendationReadiness(profile, careers, skills, studentSkills),
+    [careers, profile, skills, studentSkills],
+  );
   const matches = useMemo(
     () =>
-      rankCareers(
-        careers,
-        skills,
-        studentSkills,
-        profile?.academic_year,
-        profile?.interests,
-      ),
+      recommendationReadiness.ready
+        ? rankCareers(
+            careers,
+            skills,
+            studentSkills,
+            profile?.academic_year,
+            profile?.interests,
+          )
+        : [],
     [
       careers,
       profile?.academic_year,
       profile?.interests,
+      recommendationReadiness.ready,
       skills,
       studentSkills,
     ],
@@ -107,7 +117,9 @@ export default function StudentDashboard() {
       title: "Career Matches",
       value: matches.length,
       Icon: GraduationCap,
-      note: "Calculated from thresholds",
+      note: recommendationReadiness.ready
+        ? "Calculated from thresholds"
+        : "Complete profile first",
     },
   ];
 
@@ -152,6 +164,53 @@ export default function StudentDashboard() {
         ))}
       </section>
 
+      <section className="mb-10 rounded-3xl border border-teal-100 bg-white p-7 shadow-sm">
+        <h2 className="text-2xl font-extrabold">How Career Compass works</h2>
+        <p className="mt-2 max-w-3xl text-slate-600">
+          Complete these steps in order. Your preferred career is only a goal;
+          the system recommendation is calculated from your saved information.
+        </p>
+        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {[
+            [
+              "1",
+              "Complete Profile",
+              "Save your academic year, program, interests, and technologies.",
+            ],
+            [
+              "2",
+              "Rate Skills",
+              "Enter evidence-based 0–100 scores in Skill Gap Analysis.",
+            ],
+            [
+              "3",
+              "Get Recommendation",
+              "The system ranks careers using skill readiness and interest alignment.",
+            ],
+            [
+              "4",
+              "Close Gaps",
+              "Use the skill gaps and electives as your improvement plan.",
+            ],
+            [
+              "5",
+              "Prepare",
+              "Practice interviews and improve your resume for the recommended path.",
+            ],
+          ].map(([number, title, description]) => (
+            <div key={number} className="rounded-2xl bg-[#f4fbfa] p-4">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1f8f78] text-sm font-extrabold text-white">
+                {number}
+              </span>
+              <h3 className="mt-3 font-extrabold text-slate-900">{title}</h3>
+              <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                {description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <section className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className="text-2xl font-extrabold">Career Match Overview</h2>
@@ -172,6 +231,26 @@ export default function StudentDashboard() {
       {loading ? (
         <div className="mb-8 rounded-3xl border border-teal-100 bg-white p-8 text-slate-500 shadow-sm">
           Loading your dashboard...
+        </div>
+      ) : !recommendationReadiness.ready ? (
+        <div className="mb-8 rounded-3xl border border-amber-200 bg-amber-50 p-8 shadow-sm">
+          <h2 className="text-2xl font-extrabold">
+            Your recommendation is not ready yet
+          </h2>
+          <p className="mt-2 text-slate-700">
+            Complete the missing profile details and save at least one relevant
+            skill score so the system can calculate a meaningful career match.
+          </p>
+          <p className="mt-4 text-sm font-bold text-slate-700">
+            Still needed: {recommendationReadiness.missing.join(", ")}
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate("/profile")}
+            className="mt-5 rounded-xl bg-[#1f8f78] px-5 py-3 font-bold text-white"
+          >
+            Complete Profile
+          </button>
         </div>
       ) : !primary ? (
         <div className="mb-8 rounded-3xl border border-teal-100 bg-white p-8 text-slate-500 shadow-sm">

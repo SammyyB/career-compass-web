@@ -19,17 +19,23 @@ import {
   listSkills,
   listStudentSkills,
 } from "../../services/repository";
-import { rankCareers } from "../../services/recommendations";
+import {
+  getRecommendationReadiness,
+  rankCareers,
+} from "../../services/recommendations";
 
 type ResumeAnalysisResponse = {
   analysis?: string;
   alignment_score?: number;
   warnings?: string[];
+  missing_skills?: string[];
+  next_steps?: string[];
 };
 
 type ResumeBuilderResponse = {
   resume_markdown?: string;
   suggestions?: string[];
+  content_labels?: string[];
 };
 
 const MAX_RESUME_SIZE_BYTES = 10 * 1024 * 1024;
@@ -77,22 +83,32 @@ export default function ResumeAnalyzer() {
   const [alignmentScore, setAlignmentScore] = useState<number | null>(null);
   const [resumeDraft, setResumeDraft] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [missingSkills, setMissingSkills] = useState<string[]>([]);
+  const [nextSteps, setNextSteps] = useState<string[]>([]);
+  const [contentLabels, setContentLabels] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
 
+  const recommendationReadiness = useMemo(
+    () => getRecommendationReadiness(profile, careers, skills, studentSkills),
+    [careers, profile, skills, studentSkills],
+  );
   const rankedCareers = useMemo(
     () =>
-      rankCareers(
-        careers,
-        skills,
-        studentSkills,
-        profile?.academic_year,
-        profile?.interests,
-      ),
+      recommendationReadiness.ready
+        ? rankCareers(
+            careers,
+            skills,
+            studentSkills,
+            profile?.academic_year,
+            profile?.interests,
+          )
+        : [],
     [
       careers,
       profile?.academic_year,
       profile?.interests,
+      recommendationReadiness.ready,
       skills,
       studentSkills,
     ],
@@ -106,7 +122,8 @@ export default function ResumeAnalyzer() {
     profile?.career_target?.trim() &&
     profile?.interests?.length &&
     profile?.technologies?.length &&
-    systemCareer,
+    systemCareer &&
+    recommendationReadiness.ready,
   );
 
   useEffect(() => {
@@ -165,6 +182,13 @@ export default function ResumeAnalyzer() {
   };
 
   const analyzeResume = async () => {
+    if (!recommendationReadiness.ready) {
+      setError(
+        `Complete the career-planning setup first: ${recommendationReadiness.missing.join(", ")}.`,
+      );
+      return;
+    }
+
     if (!file) {
       setError("Choose a PDF resume first.");
       return;
@@ -207,6 +231,8 @@ export default function ResumeAnalyzer() {
       setAnalysis(nextAnalysis);
       setAlignmentScore(nextScore);
       setSuggestions(result.warnings ?? []);
+      setMissingSkills(result.missing_skills ?? []);
+      setNextSteps(result.next_steps ?? []);
       setStatus("Resume analysis completed.");
     } catch (analysisError) {
       setError(
@@ -221,6 +247,13 @@ export default function ResumeAnalyzer() {
   };
 
   const generateResumeDraft = async () => {
+    if (!recommendationReadiness.ready) {
+      setError(
+        `Complete the career-planning setup first: ${recommendationReadiness.missing.join(", ")}.`,
+      );
+      return;
+    }
+
     if (!profileComplete) {
       setError(
         "Complete your first name, last name, program, career target, interests, and technologies in your Profile before generating a resume.",
@@ -256,6 +289,7 @@ export default function ResumeAnalyzer() {
 
       setResumeDraft(result.resume_markdown.trim());
       setSuggestions(result.suggestions ?? []);
+      setContentLabels(result.content_labels ?? []);
       setStatus(
         "Resume draft generated. Review every section before using it.",
       );
@@ -322,6 +356,35 @@ export default function ResumeAnalyzer() {
         </p>
       )}
 
+      {!recommendationReadiness.ready && (
+        <div className="mb-6 rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
+          <h2 className="text-xl font-extrabold text-slate-900">
+            Complete your career plan first
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-700">
+            Resume alignment and generation need a system-ranked career so the
+            feedback is relevant to you rather than generic.
+          </p>
+          <p className="mt-3 text-sm font-bold text-slate-800">
+            Still needed: {recommendationReadiness.missing.join(", ")}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link
+              to="/profile"
+              className="rounded-xl bg-[#1f8f78] px-4 py-2 font-bold text-white"
+            >
+              Complete Profile
+            </Link>
+            <Link
+              to="/skill-gap"
+              className="rounded-xl border border-teal-200 bg-white px-4 py-2 font-bold text-[#16806d]"
+            >
+              Enter Skill Scores
+            </Link>
+          </div>
+        </div>
+      )}
+
       <section className="mb-6 grid gap-6 lg:grid-cols-2">
         <div className="rounded-3xl border border-teal-100 bg-white p-8 shadow-sm">
           <div className="mb-5 flex items-center gap-3">
@@ -385,7 +448,9 @@ export default function ResumeAnalyzer() {
           <button
             type="button"
             onClick={() => void analyzeResume()}
-            disabled={!file || busy || !online}
+            disabled={
+              !file || busy || !online || !recommendationReadiness.ready
+            }
             className={`mt-5 w-full rounded-xl bg-[#1f8f78] px-6 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 ${focusClass}`}
           >
             {busy ? "Analyzing..." : "Analyze Resume"}
@@ -422,6 +487,25 @@ export default function ResumeAnalyzer() {
           <pre className="whitespace-pre-wrap rounded-2xl bg-[#f4fbfa] p-6 text-sm leading-relaxed text-slate-700">
             {resumeDraft}
           </pre>
+          <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
+            <p className="font-extrabold">
+              Important: review the draft before using it
+            </p>
+            <p className="mt-2">
+              Your saved profile information is used as factual context. Any
+              text marked{" "}
+              <strong>[SUGGESTED EXAMPLE — REPLACE WITH YOUR OWN]</strong>
+              is only a writing example and must not be submitted as your real
+              experience.
+            </p>
+            {contentLabels.length > 0 && (
+              <ul className="mt-3 list-disc space-y-1 pl-5">
+                {contentLabels.map((label) => (
+                  <li key={label}>{label}</li>
+                ))}
+              </ul>
+            )}
+          </div>
         </section>
       )}
 
@@ -459,6 +543,41 @@ export default function ResumeAnalyzer() {
                 <li key={suggestion}>{suggestion}</li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {(missingSkills.length > 0 || nextSteps.length > 0) && (
+          <div className="mt-6 grid gap-5 md:grid-cols-2">
+            {missingSkills.length > 0 && (
+              <div className="rounded-2xl border border-orange-100 bg-orange-50 p-5">
+                <h3 className="font-extrabold text-orange-900">
+                  Skills to practice
+                </h3>
+                <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-orange-900">
+                  {missingSkills.map((skill) => (
+                    <li key={skill}>{skill}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {nextSteps.length > 0 && (
+              <div className="rounded-2xl border border-teal-100 bg-[#f4fbfa] p-5">
+                <h3 className="font-extrabold text-[#16806d]">
+                  Next steps for your plan
+                </h3>
+                <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-700">
+                  {nextSteps.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+                <Link
+                  to="/skill-gap"
+                  className="mt-4 inline-block font-bold text-[#16806d] underline"
+                >
+                  Update your skill-gap scores
+                </Link>
+              </div>
+            )}
           </div>
         )}
       </section>

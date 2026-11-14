@@ -1,4 +1,4 @@
-import type { Career, Skill, StudentSkill } from "../lib/types";
+import type { Career, Profile, Skill, StudentSkill } from "../lib/types";
 
 export type CareerLevel = "entry" | "junior" | "senior";
 
@@ -37,6 +37,49 @@ export function getThresholds(career: Career, level: CareerLevel) {
   if (level === "senior") return career.senior_thresholds;
   if (level === "junior") return career.junior_thresholds;
   return career.entry_thresholds;
+}
+
+export function hasConfiguredThresholds(career: Career, level: CareerLevel) {
+  return Object.keys(getThresholds(career, level)).length > 0;
+}
+
+export function getRecommendationReadiness(
+  profile:
+    | Pick<Profile, "academic_year" | "program" | "interests" | "technologies">
+    | null
+    | undefined,
+  careers: Career[],
+  skills: Skill[],
+  studentSkills: StudentSkill[],
+) {
+  const level = getCareerLevel(profile?.academic_year);
+  const configuredCareers = careers.filter((career) =>
+    hasConfiguredThresholds(career, level),
+  );
+  const requiredSkillNames = new Set(
+    configuredCareers.flatMap((career) =>
+      Object.keys(getThresholds(career, level)).map((name) =>
+        name.toLowerCase(),
+      ),
+    ),
+  );
+  const scoredSkillIds = new Set(studentSkills.map((item) => item.skill_id));
+  const hasRelevantSkillScore = skills.some(
+    (skill) =>
+      requiredSkillNames.has(skill.name.toLowerCase()) &&
+      scoredSkillIds.has(skill.id),
+  );
+  const missing: string[] = [];
+
+  if (!profile?.academic_year) missing.push("academic year");
+  if (!profile?.program?.trim()) missing.push("program or course");
+  if (!profile?.interests?.length) missing.push("career interests");
+  if (!profile?.technologies?.length) missing.push("technologies");
+  if (!hasRelevantSkillScore) missing.push("at least one relevant skill score");
+  if (!configuredCareers.length)
+    missing.push("administrator-configured thresholds");
+
+  return { ready: missing.length === 0, missing, configuredCareers };
 }
 
 export function getCurrentSkillScore(
@@ -128,6 +171,7 @@ export function rankCareers(
   const level = getCareerLevel(academicYear);
 
   return careers
+    .filter((career) => hasConfiguredThresholds(career, level))
     .map((career) =>
       calculateCareerMatch(career, level, skills, studentSkills, interests),
     )

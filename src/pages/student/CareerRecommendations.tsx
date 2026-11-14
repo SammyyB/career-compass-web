@@ -6,6 +6,7 @@ import {
   Layers,
   Target,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import StudentLayout from "../../components/StudentLayout";
 import GraphLegend from "../../components/GraphLegend";
@@ -17,7 +18,10 @@ import type {
   Specialization,
   StudentSkill,
 } from "../../lib/types";
-import { rankCareers } from "../../services/recommendations";
+import {
+  getRecommendationReadiness,
+  rankCareers,
+} from "../../services/recommendations";
 import {
   listCareers,
   listElectives,
@@ -77,19 +81,26 @@ export default function CareerRecommendations() {
     void load();
   }, [session?.user.id]);
 
+  const recommendationReadiness = useMemo(
+    () => getRecommendationReadiness(profile, careers, skills, studentSkills),
+    [careers, profile, skills, studentSkills],
+  );
   const rankedResults = useMemo(
     () =>
-      rankCareers(
-        careers,
-        skills,
-        studentSkills,
-        profile?.academic_year,
-        profile?.interests,
-      ),
+      recommendationReadiness.ready
+        ? rankCareers(
+            careers,
+            skills,
+            studentSkills,
+            profile?.academic_year,
+            profile?.interests,
+          )
+        : [],
     [
       careers,
       profile?.academic_year,
       profile?.interests,
+      recommendationReadiness.ready,
       skills,
       studentSkills,
     ],
@@ -127,6 +138,13 @@ export default function CareerRecommendations() {
           and the administrator&apos;s thresholds. Secondary paths remain
           visible for comparison.
         </p>
+        <div className="mt-5 rounded-2xl bg-white/80 p-4 text-sm leading-relaxed text-slate-700">
+          <strong>When will a career be recommended?</strong> After you save
+          your academic details, interests, technologies, and relevant skill
+          scores. The system then compares your scores with each configured
+          career and displays the highest-scoring path as your primary
+          recommendation.
+        </div>
         {profile?.career_target && (
           <div className="mt-6 flex w-full min-w-0 items-start gap-4 rounded-2xl border border-teal-200 border-l-4 border-l-[#16806d] bg-white p-5 shadow-sm sm:max-w-lg">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#eaf8f5] text-[#16806d]">
@@ -138,6 +156,10 @@ export default function CareerRecommendations() {
               </p>
               <p className="mt-1 break-words text-xl font-extrabold text-[#16806d] sm:text-2xl">
                 {profile.career_target}
+              </p>
+              <p className="mt-2 text-xs text-slate-500">
+                Used as your stated preference; it does not change the system
+                ranking.
               </p>
             </div>
           </div>
@@ -154,13 +176,53 @@ export default function CareerRecommendations() {
         <div className="rounded-3xl border border-teal-100 bg-white p-8 text-slate-500 shadow-sm">
           Calculating your career matches...
         </div>
+      ) : !recommendationReadiness.ready ? (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-8 shadow-sm">
+          <h2 className="text-2xl font-extrabold text-slate-900">
+            Complete your career profile first
+          </h2>
+          <p className="mt-2 text-slate-700">
+            The system will show a recommendation only after it has enough
+            verified information to calculate a meaningful match.
+          </p>
+          <p className="mt-4 font-bold text-slate-800">Still needed:</p>
+          <ul className="mt-2 list-inside list-disc text-slate-700">
+            {recommendationReadiness.missing.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              to="/profile"
+              className="rounded-xl bg-[#1f8f78] px-5 py-3 font-bold text-white"
+            >
+              Complete Profile
+            </Link>
+            <Link
+              to="/skill-gap"
+              className="rounded-xl border border-teal-200 bg-white px-5 py-3 font-bold text-[#16806d]"
+            >
+              Enter Skill Scores
+            </Link>
+          </div>
+        </div>
       ) : !primary ? (
         <div className="rounded-3xl border border-teal-100 bg-white p-8 text-slate-500 shadow-sm">
-          No career profiles are available yet. Ask an administrator to add
-          career paths and skill thresholds.
+          No administrator-configured career paths are available yet.
         </div>
       ) : (
         <>
+          <section className="mb-6 rounded-3xl border border-teal-100 bg-white p-8 shadow-sm">
+            <h2 className="text-2xl font-extrabold">
+              How your ranking is calculated
+            </h2>
+            <p className="mt-3 text-slate-600">
+              Each career is ranked using 80% skill readiness and 20% interest
+              alignment. Skill readiness compares your saved scores with the
+              administrator&apos;s threshold for your academic year. Careers
+              without configured thresholds are excluded.
+            </p>
+          </section>
           <section className="mb-6 space-y-6">
             <div className="rounded-3xl bg-gradient-to-br from-[#1f8f78] to-[#36a889] p-9 text-white shadow-lg">
               <div className="flex items-center gap-3">

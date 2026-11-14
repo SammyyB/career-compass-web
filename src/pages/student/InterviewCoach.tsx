@@ -20,8 +20,12 @@ import {
   listCareers,
   listSkills,
   listStudentSkills,
+  saveStudentInterviewSession,
 } from "../../services/repository";
-import { rankCareers } from "../../services/recommendations";
+import {
+  getRecommendationReadiness,
+  rankCareers,
+} from "../../services/recommendations";
 
 type InterviewQuestion = {
   question: string;
@@ -32,6 +36,9 @@ type InterviewQuestion = {
 type InterviewResponse = {
   feedback?: string;
   score?: number;
+  strengths?: string[];
+  improvement_areas?: string[];
+  next_steps?: string[];
 };
 
 type QuestionsResponse = {
@@ -105,6 +112,9 @@ export default function InterviewCoach() {
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [feedbacks, setFeedbacks] = useState<Record<number, string>>({});
   const [scores, setScores] = useState<Record<number, number>>({});
+  const [feedbackDetails, setFeedbackDetails] = useState<
+    Record<number, Omit<InterviewResponse, "feedback" | "score">>
+  >({});
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
@@ -113,19 +123,26 @@ export default function InterviewCoach() {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const currentQuestion = questions[questionIndex];
+  const recommendationReadiness = useMemo(
+    () => getRecommendationReadiness(profile, careers, skills, studentSkills),
+    [careers, profile, skills, studentSkills],
+  );
   const rankedCareers = useMemo(
     () =>
-      rankCareers(
-        careers,
-        skills,
-        studentSkills,
-        profile?.academic_year,
-        profile?.interests,
-      ),
+      recommendationReadiness.ready
+        ? rankCareers(
+            careers,
+            skills,
+            studentSkills,
+            profile?.academic_year,
+            profile?.interests,
+          )
+        : [],
     [
       careers,
       profile?.academic_year,
       profile?.interests,
+      recommendationReadiness.ready,
       skills,
       studentSkills,
     ],
@@ -134,6 +151,7 @@ export default function InterviewCoach() {
   const currentAnswer = answers[questionIndex] ?? "";
   const currentFeedback = feedbacks[questionIndex];
   const currentScore = scores[questionIndex];
+  const currentFeedbackDetails = feedbackDetails[questionIndex];
 
   useEffect(() => {
     if (!session?.user.id) return;
@@ -184,13 +202,18 @@ export default function InterviewCoach() {
       delete next[questionIndex];
       return next;
     });
+    setFeedbackDetails((current) => {
+      const next = { ...current };
+      delete next[questionIndex];
+      return next;
+    });
     setError("");
   };
 
   const generateQuestions = async () => {
-    if (!systemCareer) {
+    if (!recommendationReadiness.ready) {
       setError(
-        "Complete your profile and skill information before generating questions.",
+        `Complete the career-planning setup first: ${recommendationReadiness.missing.join(", ")}.`,
       );
       setStatus("");
       return;
@@ -248,6 +271,7 @@ export default function InterviewCoach() {
       setAnswers({});
       setFeedbacks({});
       setScores({});
+      setFeedbackDetails({});
       setStatus("Five AI interview questions are ready.");
     } catch (generationError) {
       setError(
@@ -305,7 +329,33 @@ export default function InterviewCoach() {
         [questionIndex]: nextFeedback,
       }));
       setScores((current) => ({ ...current, [questionIndex]: nextScore }));
-      setStatus("AI feedback generated from the approved module content.");
+      setFeedbackDetails((current) => ({
+        ...current,
+        [questionIndex]: {
+          strengths: result.strengths ?? [],
+          improvement_areas: result.improvement_areas ?? [],
+          next_steps: result.next_steps ?? [],
+        },
+      }));
+      if (session?.user.id) {
+        try {
+          await saveStudentInterviewSession(
+            session.user.id,
+            currentQuestion.question,
+            currentAnswer.trim(),
+            nextFeedback,
+            nextScore,
+          );
+          setStatus("Feedback generated and saved to your interview progress.");
+        } catch (saveError) {
+          console.error("Unable to save interview progress:", saveError);
+          setStatus(
+            "Feedback generated. It could not be saved to your progress history.",
+          );
+        }
+      } else {
+        setStatus("AI feedback generated from the approved module content.");
+      }
     } catch (feedbackError) {
       setError(
         feedbackError instanceof Error
@@ -378,9 +428,9 @@ export default function InterviewCoach() {
           Practice for your target career
         </h1>
         <p className="mt-3 max-w-3xl text-slate-600">
-          Generate five questions and receive module-limited AI feedback.
-          Answers and feedback remain in this screen session and are not
-          automatically saved.
+          Generate five questions and receive module-limited AI feedback. Your
+          submitted answers and feedback are saved to your interview progress so
+          you can use them as a practice history.
         </p>
       </section>
 
@@ -405,132 +455,194 @@ export default function InterviewCoach() {
         </p>
       )}
 
-      <section className="space-y-6">
-        <div className="rounded-3xl border border-teal-100 bg-white p-5 shadow-sm sm:p-8">
-          <div className="mb-5 flex items-center gap-3">
-            <Sparkles className="text-[#16806d]" />
-            <h2 className="text-2xl font-extrabold">AI Question Set</h2>
-          </div>
-          <p className="text-slate-600">
-            System-recommended career:{" "}
-            {systemCareer || "Calculating recommendation..."}
-          </p>
-          {!systemCareer && (
-            <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
-              Complete your profile and skill information in your{" "}
-              <Link to="/profile" className="font-bold underline">
-                Profile
-              </Link>{" "}
-              before generating questions.
-            </p>
-          )}
-          <button
-            type="button"
-            onClick={() => void generateQuestions()}
-            disabled={busy || !online || !systemCareer}
-            className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#55b497] px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 ${focusClass}`}
-          >
-            <Sparkles size={18} />
-            {busy ? "Working..." : "Generate 5 AI Questions"}
-          </button>
-          <div className="mt-5 flex items-start gap-3 rounded-2xl bg-[#f4fbfa] p-4 text-sm text-slate-600">
-            <Info className="mt-0.5 shrink-0 text-[#16806d]" size={18} />
-            <p>
-              AI uses only the selected module context and career-related
-              profile details.
-            </p>
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-teal-100 bg-white p-5 shadow-sm sm:p-8">
-          <p className="text-sm font-bold uppercase tracking-wide text-teal-700">
-            Question {questionIndex + 1} of {questions.length}
-          </p>
-          <h2 className="mt-3 text-2xl font-extrabold">
-            {currentQuestion.question}
+      {!recommendationReadiness.ready ? (
+        <section className="rounded-3xl border border-amber-200 bg-amber-50 p-8 shadow-sm">
+          <h2 className="text-2xl font-extrabold text-slate-900">
+            Complete your career plan before using Interview Coach
           </h2>
-          <p className="mt-3 text-sm font-semibold text-[#16806d]">
-            Module: {currentQuestion.module}
+          <p className="mt-3 max-w-3xl leading-relaxed text-slate-700">
+            Interview questions must be based on a real system recommendation.
+            Complete your academic profile and save skill scores first so the
+            questions match your current career path instead of being generic.
           </p>
-        </div>
-        <div className="rounded-3xl border border-teal-100 bg-white p-5 shadow-sm sm:p-8">
-          <div className="mb-5 flex items-center gap-3">
-            <MessageSquareText className="text-[#16806d]" />
-            <h2 className="text-2xl font-extrabold">Your Answer</h2>
+          <p className="mt-5 font-bold text-slate-800">Still needed:</p>
+          <ul className="mt-2 list-inside list-disc text-slate-700">
+            {recommendationReadiness.missing.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              to="/profile"
+              className="rounded-xl bg-[#1f8f78] px-5 py-3 font-bold text-white"
+            >
+              Complete Profile
+            </Link>
+            <Link
+              to="/skill-gap"
+              className="rounded-xl border border-teal-200 bg-white px-5 py-3 font-bold text-[#16806d]"
+            >
+              Enter Skill Scores
+            </Link>
           </div>
-
-          <form onSubmit={submitAnswer}>
-            <textarea
-              required
-              value={currentAnswer}
-              onChange={(event) => updateAnswer(event.target.value)}
-              className="h-56 w-full rounded-2xl border border-teal-100 bg-[#f4fbfa] p-4 outline-none focus:ring-2 focus:ring-[#55b497]"
-              placeholder="Type your answer here..."
-            />
-
-            <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={startVoiceInput}
-                disabled={busy}
-                className={`inline-flex items-center gap-2 rounded-xl border border-teal-200 px-4 py-3 font-bold text-[#16806d] disabled:opacity-60 ${focusClass}`}
-              >
-                <Mic size={18} />
-                {listening ? "Stop listening" : "Use microphone"}
-              </button>
-              <button
-                type="submit"
-                disabled={busy || !online}
-                className={`inline-flex items-center gap-2 rounded-xl bg-[#55b497] px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 ${focusClass}`}
-              >
-                <Send size={18} />
-                {busy ? "Checking..." : "Get AI Feedback"}
-              </button>
+        </section>
+      ) : (
+        <section className="space-y-6">
+          <div className="rounded-3xl border border-teal-100 bg-white p-5 shadow-sm sm:p-8">
+            <div className="mb-5 flex items-center gap-3">
+              <Sparkles className="text-[#16806d]" />
+              <h2 className="text-2xl font-extrabold">AI Question Set</h2>
             </div>
-          </form>
-
-          {currentFeedback && (
-            <div className="mt-6 rounded-2xl border border-teal-100 bg-[#f4fbfa] p-5">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="font-extrabold text-[#16806d]">AI Feedback</h3>
-                <span className="rounded-full bg-white px-3 py-1 text-sm font-extrabold text-[#16806d]">
-                  {currentScore}%
-                </span>
-              </div>
-              <p className="mt-3 whitespace-pre-line leading-relaxed text-slate-700">
-                {currentFeedback}
+            <p className="text-slate-600">
+              System-recommended career:{" "}
+              {systemCareer || "Calculating recommendation..."}
+            </p>
+            {!systemCareer && (
+              <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+                Complete your profile and skill information in your{" "}
+                <Link to="/profile" className="font-bold underline">
+                  Profile
+                </Link>{" "}
+                before generating questions.
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => void generateQuestions()}
+              disabled={busy || !online || !systemCareer}
+              className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#55b497] px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 ${focusClass}`}
+            >
+              <Sparkles size={18} />
+              {busy ? "Working..." : "Generate 5 AI Questions"}
+            </button>
+            <div className="mt-5 flex items-start gap-3 rounded-2xl bg-[#f4fbfa] p-4 text-sm text-slate-600">
+              <Info className="mt-0.5 shrink-0 text-[#16806d]" size={18} />
+              <p>
+                AI uses only the selected module context and career-related
+                profile details.
               </p>
             </div>
-          )}
-
-          <div className="mt-8 flex items-center justify-between border-t border-slate-100 pt-5">
-            <button
-              type="button"
-              onClick={() =>
-                setQuestionIndex((current) => Math.max(0, current - 1))
-              }
-              disabled={questionIndex === 0}
-              className={`inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-3 font-bold text-slate-700 disabled:opacity-40 ${focusClass}`}
-            >
-              <ChevronLeft size={18} />
-              Previous
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setQuestionIndex((current) =>
-                  Math.min(questions.length - 1, current + 1),
-                )
-              }
-              disabled={questionIndex === questions.length - 1}
-              className={`inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-3 font-bold text-slate-700 disabled:opacity-40 ${focusClass}`}
-            >
-              Next
-              <ChevronRight size={18} />
-            </button>
           </div>
-        </div>
-      </section>
+
+          <div className="rounded-3xl border border-teal-100 bg-white p-5 shadow-sm sm:p-8">
+            <p className="text-sm font-bold uppercase tracking-wide text-teal-700">
+              Question {questionIndex + 1} of {questions.length}
+            </p>
+            <h2 className="mt-3 text-2xl font-extrabold">
+              {currentQuestion.question}
+            </h2>
+            <p className="mt-3 text-sm font-semibold text-[#16806d]">
+              Module: {currentQuestion.module}
+            </p>
+          </div>
+          <div className="rounded-3xl border border-teal-100 bg-white p-5 shadow-sm sm:p-8">
+            <div className="mb-5 flex items-center gap-3">
+              <MessageSquareText className="text-[#16806d]" />
+              <h2 className="text-2xl font-extrabold">Your Answer</h2>
+            </div>
+
+            <form onSubmit={submitAnswer}>
+              <textarea
+                required
+                value={currentAnswer}
+                onChange={(event) => updateAnswer(event.target.value)}
+                className="h-56 w-full rounded-2xl border border-teal-100 bg-[#f4fbfa] p-4 outline-none focus:ring-2 focus:ring-[#55b497]"
+                placeholder="Type your answer here..."
+              />
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={startVoiceInput}
+                  disabled={busy}
+                  className={`inline-flex items-center gap-2 rounded-xl border border-teal-200 px-4 py-3 font-bold text-[#16806d] disabled:opacity-60 ${focusClass}`}
+                >
+                  <Mic size={18} />
+                  {listening ? "Stop listening" : "Use microphone"}
+                </button>
+                <button
+                  type="submit"
+                  disabled={busy || !online}
+                  className={`inline-flex items-center gap-2 rounded-xl bg-[#55b497] px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 ${focusClass}`}
+                >
+                  <Send size={18} />
+                  {busy ? "Checking..." : "Get AI Feedback"}
+                </button>
+              </div>
+            </form>
+
+            {currentFeedback && (
+              <div className="mt-6 rounded-2xl border border-teal-100 bg-[#f4fbfa] p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-extrabold text-[#16806d]">AI Feedback</h3>
+                  <span className="rounded-full bg-white px-3 py-1 text-sm font-extrabold text-[#16806d]">
+                    {currentScore}%
+                  </span>
+                </div>
+                <p className="mt-3 whitespace-pre-line leading-relaxed text-slate-700">
+                  {currentFeedback}
+                </p>
+                {currentFeedbackDetails && (
+                  <div className="mt-5 grid gap-4 border-t border-teal-100 pt-5 md:grid-cols-3">
+                    {[
+                      [
+                        "What you did well",
+                        currentFeedbackDetails.strengths ?? [],
+                      ],
+                      [
+                        "Improve next",
+                        currentFeedbackDetails.improvement_areas ?? [],
+                      ],
+                      [
+                        "Practice plan",
+                        currentFeedbackDetails.next_steps ?? [],
+                      ],
+                    ].map(([title, items]) => (
+                      <div key={title as string}>
+                        <p className="font-extrabold text-[#16806d]">
+                          {title as string}
+                        </p>
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                          {(items as string[]).map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="mt-8 flex items-center justify-between border-t border-slate-100 pt-5">
+              <button
+                type="button"
+                onClick={() =>
+                  setQuestionIndex((current) => Math.max(0, current - 1))
+                }
+                disabled={questionIndex === 0}
+                className={`inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-3 font-bold text-slate-700 disabled:opacity-40 ${focusClass}`}
+              >
+                <ChevronLeft size={18} />
+                Previous
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setQuestionIndex((current) =>
+                    Math.min(questions.length - 1, current + 1),
+                  )
+                }
+                disabled={questionIndex === questions.length - 1}
+                className={`inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-3 font-bold text-slate-700 disabled:opacity-40 ${focusClass}`}
+              >
+                Next
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
     </StudentLayout>
   );
 }

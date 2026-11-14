@@ -496,7 +496,7 @@ async function main(request: Request) {
             role: "user",
             parts: [
               {
-                text: `Evaluate this interview answer only against the approved module content. Do not judge knowledge outside the module. Give specific, encouraging feedback and a score from 0 to 100. Module: ${moduleName}. Approved module content: ${moduleContext}. Question: ${question}. Student answer: ${answer}. Career profile: ${JSON.stringify(effectiveCareerProfile)}`,
+                text: `Evaluate this interview answer only against the approved module content. Do not judge knowledge outside the module. Give specific, encouraging feedback and a score from 0 to 100. Also identify the answer's strengths, improvement areas, and one or more concrete practice steps. Module: ${moduleName}. Approved module content: ${moduleContext}. Question: ${question}. Student answer: ${answer}. Career profile: ${JSON.stringify(effectiveCareerProfile)}`,
               },
             ],
           },
@@ -506,8 +506,26 @@ async function main(request: Request) {
           properties: {
             feedback: { type: "string" },
             score: { type: "number", minimum: 0, maximum: 100 },
+            strengths: {
+              type: "array",
+              items: { type: "string" },
+            },
+            improvement_areas: {
+              type: "array",
+              items: { type: "string" },
+            },
+            next_steps: {
+              type: "array",
+              items: { type: "string" },
+            },
           },
-          required: ["feedback", "score"],
+          required: [
+            "feedback",
+            "score",
+            "strengths",
+            "improvement_areas",
+            "next_steps",
+          ],
         },
       ),
     );
@@ -522,7 +540,7 @@ async function main(request: Request) {
             role: "user",
             parts: [
               {
-                text: `Create an honest one-page resume draft using only this student's profile context. Include the student's first and last name at the top of the draft. Use the program, system-recommended career, interests, and technologies to personalize the draft. Do not invent employers, dates, grades, certificates, projects, or achievements. Use clear placeholders for any resume sections that are not provided. Make the draft suitable for an IT student targeting the stated system-recommended career. Profile context: ${JSON.stringify(effectiveCareerProfile)}`,
+                text: `Create an honest one-page resume draft using only this student's profile context. Include the student's first and last name at the top of the draft. Use the program, system-recommended career, interests, and technologies to personalize the draft. Do not invent employers, dates, grades, certificates, projects, or achievements. Clearly label every unprovided item as [SUGGESTED EXAMPLE — REPLACE WITH YOUR OWN] and never present it as the student's real experience. Make the draft suitable for an IT student targeting the stated system-recommended career. Profile context: ${JSON.stringify(effectiveCareerProfile)}`,
               },
             ],
           },
@@ -535,8 +553,12 @@ async function main(request: Request) {
               type: "array",
               items: { type: "string" },
             },
+            content_labels: {
+              type: "array",
+              items: { type: "string" },
+            },
           },
-          required: ["resume_markdown", "suggestions"],
+          required: ["resume_markdown", "suggestions", "content_labels"],
         },
       ),
     );
@@ -567,7 +589,7 @@ async function main(request: Request) {
           role: "user",
           parts: [
             {
-              text: `Analyze this resume for the student's system-recommended IT career. Refer only to the actual document and the career-related profile context. Do not invent information. Identify strengths, missing or unclear sections, skills to improve, and concrete next steps. A score is coaching guidance, not a hiring probability. Profile context: ${JSON.stringify(effectiveCareerProfile)}`,
+              text: `Analyze this resume for the student's system-recommended IT career. Refer only to the actual document and the career-related profile context. Do not invent information. Identify strengths, missing or unclear sections, skills to improve, and concrete next steps that connect to the student's skill-gap plan. A score is coaching guidance, not a hiring probability. Return 3 to 6 concrete next steps and identify specific skills to practice when the document supports that conclusion. Profile context: ${JSON.stringify(effectiveCareerProfile)}`,
             },
             {
               inline_data: {
@@ -587,8 +609,22 @@ async function main(request: Request) {
             type: "array",
             items: { type: "string" },
           },
+          missing_skills: {
+            type: "array",
+            items: { type: "string" },
+          },
+          next_steps: {
+            type: "array",
+            items: { type: "string" },
+          },
         },
-        required: ["analysis", "alignment_score", "warnings"],
+        required: [
+          "analysis",
+          "alignment_score",
+          "warnings",
+          "missing_skills",
+          "next_steps",
+        ],
       },
     ),
   );
